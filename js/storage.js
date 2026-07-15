@@ -14,6 +14,8 @@ export const DEFAULT_SETTINGS = {
   radarSmoothing: true,         // CSS-level smoothing of radar tiles
   colorTable: 'classic',        // 'classic' | 'enhanced' | 'grayscale'
   monitorRadiusKm: CONFIG.analysis.monitorRadiusKm,
+  minCellScore: 0,              // hide storms scoring below this (map + lists)
+  onlyNearby: false,            // only show storms within monitorRadiusKm
   aiSensitivity: 'balanced',    // 'conservative' | 'balanced' | 'aggressive'
   notifySensitivity: 'high-only', // 'all' | 'high-only' | 'off'
   lightningAlertKm: 30,

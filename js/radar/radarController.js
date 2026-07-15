@@ -40,7 +40,7 @@ export class RadarController {
   applyStyle() {
     const pane = this.map.getPane(this.paneName);
     pane.style.opacity = settings.radarOpacity;
-    pane.style.filter = colorTableFilter(settings.colorTable, settings.radarSmoothing);
+    pane.style.filter = colorTableFilter(settings.colorTable);
     pane.style.imageRendering = settings.radarSmoothing ? 'auto' : 'pixelated';
   }
 
@@ -96,13 +96,20 @@ export class RadarController {
     return `${IEM_TILES}/ridge::${this.site.id}-${tiltProd}-${Math.min(idx, 4)}/{z}/{x}/{y}.png`;
   }
 
-  /** Tear down and recreate all animation frames for the current product. */
+  /**
+   * Tear down and recreate the frame stack for the current product.
+   *
+   * Performance: only the LIVE frame gets a real tile layer up front.
+   * History frames are descriptors ({layer:null}) materialized on first
+   * playback/scrub, so idle browsing never downloads or composites the
+   * other ~10 layers — the main battery/lag saver on phones.
+   */
   rebuild() {
     const prod = getProduct(this.productId);
     if (!prod || !prod.available) return;
 
     this.stop();
-    for (const f of this.frames) this.map.removeLayer(f.layer);
+    for (const f of this.frames) if (f.layer) this.map.removeLayer(f.layer);
     this.frames = [];
 
     const isMosaic = prod.mode === 'mosaic' || (prod.mosaicFallback && !this.site);
@@ -110,19 +117,7 @@ export class RadarController {
     const step = CONFIG.radar.frameStepMin;
 
     for (let i = frameCount - 1; i >= 0; i--) {
-      const offsetMin = i * step;
-      const layer = L.tileLayer(this.frameUrl(prod, offsetMin), {
-        pane: this.paneName,
-        opacity: 0,
-        maxNativeZoom: 10,
-        maxZoom: 16,
-        updateWhenZooming: false,
-        keepBuffer: 4,
-        attribution: 'NEXRAD via IEM/NOAA',
-        crossOrigin: true,
-      });
-      layer.addTo(this.map);
-      this.frames.push({ layer, offsetMin });
+      this.frames.push({ layer: null, offsetMin: i * step });
     }
     this.frameIndex = this.frames.length - 1; // newest
     this.showFrame(this.frameIndex);
@@ -135,17 +130,37 @@ export class RadarController {
     );
   }
 
+  /** Create the tile layer for frame i if it doesn't exist yet. */
+  ensureLayer(i) {
+    const f = this.frames[i];
+    if (!f || f.layer) return;
+    const prod = getProduct(this.productId);
+    f.layer = L.tileLayer(this.frameUrl(prod, f.offsetMin), {
+      pane: this.paneName,
+      opacity: 0,
+      maxNativeZoom: 10,
+      maxZoom: 16,
+      updateWhenZooming: false,
+      updateWhenIdle: true,
+      keepBuffer: 1,
+      attribution: 'NEXRAD via IEM/NOAA',
+      crossOrigin: true,
+    });
+    f.layer.addTo(this.map);
+  }
+
   /** Force the newest frame to re-download (cache-busted) tiles. */
   refreshLive() {
     const newest = this.frames[this.frames.length - 1];
-    if (!newest) return;
+    if (!newest?.layer) return;
     const prod = getProduct(this.productId);
     newest.layer.setUrl(`${this.frameUrl(prod, 0)}?t=${Math.floor(Date.now() / 30000)}`);
   }
 
   showFrame(idx) {
     this.frameIndex = Math.max(0, Math.min(this.frames.length - 1, idx));
-    this.frames.forEach((f, i) => f.layer.setOpacity(i === this.frameIndex ? 1 : 0));
+    this.ensureLayer(this.frameIndex);
+    this.frames.forEach((f, i) => f.layer?.setOpacity(i === this.frameIndex ? 1 : 0));
     const f = this.frames[this.frameIndex];
     this.onFrameChange({
       index: this.frameIndex,
@@ -157,6 +172,8 @@ export class RadarController {
 
   play() {
     if (this.playing || this.frames.length < 2) return;
+    // Materialize all history frames so the loop never stalls mid-play.
+    this.frames.forEach((_, i) => this.ensureLayer(i));
     this.playing = true;
     const tick = () => {
       if (!this.playing) return;

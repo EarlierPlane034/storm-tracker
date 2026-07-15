@@ -107,6 +107,20 @@ export class MapView {
     this.map.flyTo([lat, lon], Math.max(this.map.getZoom(), 8), { duration: 0.8 });
   }
 
+  /** Zoom to a storm cell and drop a temporary highlight ring on it. */
+  focusCell(cell) {
+    this.map.flyTo([cell.lat, cell.lon], Math.max(this.map.getZoom(), 8.5), { duration: 0.7 });
+    if (this._focusRing) this.map.removeLayer(this._focusRing);
+    this._focusRing = L.circleMarker([cell.lat, cell.lon], {
+      radius: 26, color: '#38bdf8', weight: 3, fill: false,
+      interactive: false, dashArray: '6 6',
+    }).addTo(this.map);
+    clearTimeout(this._focusTimer);
+    this._focusTimer = setTimeout(() => {
+      if (this._focusRing) { this.map.removeLayer(this._focusRing); this._focusRing = null; }
+    }, 8000);
+  }
+
   renderAlerts(alerts) {
     this.groups.warnings.clearLayers();
     this.groups.watches.clearLayers();
@@ -184,7 +198,9 @@ export class MapView {
     this.groups.cells.clearLayers();
     this.groups.stormTracks.clearLayers();
 
-    for (const a of analyses) {
+    // Cap DOM markers on very active days; analyses arrive sorted most
+    // dangerous first, so the cap only ever drops the weakest cells.
+    for (const a of analyses.slice(0, 100)) {
       const c = a.cell;
       const color = a.severeScore >= 81 ? '#ef4444' : a.severeScore >= 61 ? '#fb923c'
         : a.severeScore >= 41 ? '#fbbf24' : a.severeScore >= 21 ? '#34d399' : '#64748b';
