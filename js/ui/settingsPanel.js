@@ -56,6 +56,9 @@ export function renderSettings({ onChanged, onRequestNotifications }) {
   selectRow('AI sensitivity', 'How readily scores climb', 'aiSensitivity',
     [['conservative', 'Conservative'], ['balanced', 'Balanced'], ['aggressive', 'Aggressive']]);
   rangeRow('Monitoring radius (km)', 'Storms inside this range drive the ticker & alerts', 'monitorRadiusKm', 50, 800, 25);
+  selectRow('Storm display filter', 'Hide weaker storms from the map & lists (alerts still watch everything)', 'minCellScore',
+    [[0, 'Show all storms'], [20, 'Score 20+ only'], [40, 'Score 40+ (elevated)'], [60, 'Score 60+ (high)']]);
+  toggleRow('Only storms near me', 'Show only storms inside your monitoring radius (needs location)', 'onlyNearby');
   toggleRow('Technical readout', 'Show raw parameters in storm details', 'showTechnical');
 
   section('Notifications');

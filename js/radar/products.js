@@ -66,12 +66,16 @@ export function getProduct(id) {
   return PRODUCTS.find((p) => p.id === id);
 }
 
-/** CSS filter strings implementing selectable colour tables + smoothing. */
-export function colorTableFilter(table, smoothing) {
-  const blur = smoothing ? 'blur(0.6px) ' : '';
+/**
+ * CSS filter strings implementing selectable colour tables.
+ * Smoothing is handled purely via image-rendering (auto = bilinear-smoothed
+ * tiles, pixelated = crisp bins) — a whole-pane blur filter was measurably
+ * janky on iPhones, so it's intentionally not used.
+ */
+export function colorTableFilter(table) {
   switch (table) {
-    case 'enhanced': return `${blur}saturate(1.35) contrast(1.12)`;
-    case 'grayscale': return `${blur}grayscale(1) brightness(1.15)`;
-    default: return `${blur}`.trim() || 'none';
+    case 'enhanced': return 'saturate(1.35) contrast(1.12)';
+    case 'grayscale': return 'grayscale(1) brightness(1.15)';
+    default: return 'none';
   }
 }

@@ -79,7 +79,13 @@ async function main() {
   sources.start();
 
   // ---- GPS ---------------------------------------------------------------------
+  let hadFix = false;
   geo.onLocation((loc) => {
+    if (!hadFix) {
+      hadFix = true;
+      document.getElementById('btn-locate').style.color = 'var(--accent)';
+      showToast(`📍 Location active (±${Math.round(loc.accuracyM)} m). Distances, arrival times and proximity alerts are now personalized.`);
+    }
     mapView.setUserLocation(loc.lat, loc.lon, loc.accuracyM);
     sources.setFocusPoint(loc.lat, loc.lon);
     reanalyze();
@@ -113,17 +119,37 @@ async function main() {
   }
 }
 
+/** Zoom the map to a storm and open its detail sheet (from any list). */
+function selectStorm(a) {
+  document.querySelectorAll('.panel').forEach((p) => { p.hidden = true; });
+  document.querySelectorAll('.tab').forEach((t) =>
+    t.classList.toggle('active', t.dataset.panel === 'map'));
+  mapView.focusCell(a.cell);
+  openStormSheet(a);
+}
+
+/** Apply the user's display filters (Settings → AI analyst). */
+function visibleAnalyses(user) {
+  return analyses.filter((a) =>
+    a.severeScore >= (settings.minCellScore || 0) &&
+    (!settings.onlyNearby || !user ||
+      (a.userRel && a.userRel.distKm <= settings.monitorRadiusKm)));
+}
+
 /** Run the full analysis pass and repaint every consumer. */
 const reanalyze = debounce(() => {
   const { cells, alerts, reports, environment } = sources.getState();
   const user = geo.getLocation();
   analyses = analyzeStorms(cells, environment, alerts, reports, user);
 
-  mapView.renderCells(analyses);
-  renderStormList(analyses, { onSelect: openStormSheet });
-  renderAiPanel(analyses, environment, alerts, user, { onSelect: openStormSheet });
+  const visible = visibleAnalyses(user);
+  const hiddenCount = analyses.length - visible.length;
+  mapView.renderCells(visible);
+  renderStormList(visible, { onSelect: selectStorm, hiddenCount });
+  renderAiPanel(visible, environment, alerts, user, { onSelect: selectStorm, hiddenCount });
   updateTicker(user);
   updateGpsChip(user);
+  // Alerts always consider every storm — display filters never mute safety.
   evaluateStorms(analyses, user);
 
   // Remember AFTER alerting so change explanations compare to the last pass.
@@ -140,12 +166,17 @@ function updateTicker(user) {
 function updateGpsChip(user) {
   const chip = document.getElementById('gps-chip');
   if (!user) { chip.hidden = true; return; }
-  const near = analyses.filter((a) => a.userRel).sort((x, y) => x.userRel.distKm - y.userRel.distKm)[0];
-  if (!near) { chip.hidden = true; return; }
   chip.hidden = false;
+  const near = analyses.filter((a) => a.userRel).sort((x, y) => x.userRel.distKm - y.userRel.distKm)[0];
+  if (!near) {
+    // Always confirm GPS is working, even on quiet days.
+    chip.innerHTML = '📍 GPS active — no storms being tracked near you';
+    chip.onclick = null;
+    return;
+  }
   const eta = near.userRel.etaMin != null ? ` · ETA ~${near.userRel.etaMin} min` : '';
-  chip.innerHTML = `Nearest storm <strong>${fmtDistance(near.userRel.distKm, settings.units)}</strong>${eta}`;
-  chip.onclick = () => openStormSheet(near);
+  chip.innerHTML = `📍 Nearest storm <strong>${fmtDistance(near.userRel.distKm, settings.units)}</strong>${eta}`;
+  chip.onclick = () => selectStorm(near);
 }
 
 /* ---------------- Radar product rail + animation bar ---------------- */
@@ -256,7 +287,8 @@ function wireChrome() {
       }
       if (path.startsWith('radar') || path === 'colorTable') radar.applyStyle();
       if (path === 'refreshIntervalSec' || path === 'animFps') radar.rebuild();
-      if (path === 'units' || path === 'monitorRadiusKm' || path === 'aiSensitivity' || path === 'showTechnical') reanalyze();
+      if (['units', 'monitorRadiusKm', 'aiSensitivity', 'showTechnical',
+        'minCellScore', 'onlyNearby'].includes(path)) reanalyze();
     },
     onRequestNotifications: requestNotificationPermission,
   });

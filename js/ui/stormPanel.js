@@ -9,17 +9,26 @@ import { stormSummary, tornadoStatement, changeExplanation, technicalReadout } f
 import { attachTrendInteraction, SERIES_COLORS } from './trendChart.js';
 import { getState } from '../api/sources.js';
 
-const scoreClass = (s) =>
+export const scoreClass = (s) =>
   s >= 81 ? 'score-extreme' : s >= 61 ? 'score-high' : s >= 41 ? 'score-elev' : s >= 21 ? 'score-low' : 'score-verylow';
 
 const riskClass = (s) => (s >= 61 ? 'on-high' : s >= 35 ? 'on-med' : s >= 15 ? 'on-low' : '');
 
-export function renderStormList(analyses, { onSelect }) {
+export function renderStormList(analyses, { onSelect, hiddenCount = 0 }) {
   const host = document.getElementById('storm-list');
   host.textContent = '';
 
+  // Explain the numbers once, right where people look for them.
+  host.appendChild(el('div', {
+    class: 'muted', style: 'margin: 0 2px 10px; font-size: 11.5px',
+    text: 'The number on each storm here — and on each circle on the map — is its AI Severe Score (0–100: how dangerous the storm looks right now). Tap a storm to zoom the map to it and see full details.',
+  }));
+
   if (!analyses.length) {
     host.appendChild(el('div', { class: 'card muted', text: 'No storm cells are currently being detected by the NEXRAD network in range. The AI keeps watching and will rank storms here the moment cells appear.' }));
+    if (hiddenCount > 0) {
+      host.appendChild(el('div', { class: 'card muted', text: `${hiddenCount} storm${hiddenCount === 1 ? ' is' : 's are'} hidden by your display filters (Settings → AI analyst).` }));
+    }
     return;
   }
 
@@ -57,6 +66,13 @@ export function renderStormList(analyses, { onSelect }) {
       card.appendChild(el('div', { class: 'muted', style: 'margin-top:6px', text: `Why: ${a.factors[0].text}.` }));
     }
     host.appendChild(card);
+  }
+
+  if (hiddenCount > 0) {
+    host.appendChild(el('div', {
+      class: 'muted', style: 'text-align:center; padding: 8px; font-size: 11.5px',
+      text: `${hiddenCount} weaker storm${hiddenCount === 1 ? '' : 's'} hidden by your display filters (Settings → AI analyst).`,
+    }));
   }
 }
 

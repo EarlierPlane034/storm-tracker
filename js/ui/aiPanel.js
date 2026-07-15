@@ -7,9 +7,9 @@ import { el, fmtDistance } from '../utils.js';
 import { settings } from '../storage.js';
 import { CONFIG } from '../config.js';
 import { stormSummary, tornadoStatement, changeExplanation } from '../analysis/narrative.js';
-import { buildTornadoMeter } from './stormPanel.js';
+import { buildTornadoMeter, scoreClass } from './stormPanel.js';
 
-export function renderAiPanel(analyses, env, alerts, user, { onSelect }) {
+export function renderAiPanel(analyses, env, alerts, user, { onSelect, hiddenCount = 0 }) {
   const host = document.getElementById('ai-analysis');
   host.textContent = '';
 
@@ -33,12 +33,19 @@ export function renderAiPanel(analyses, env, alerts, user, { onSelect }) {
 
   if (list.length) {
     host.appendChild(el('h4', { class: 'trend-title', style: 'margin:10px 4px 6px', text: `Storm-by-storm analysis (${relevant.length ? 'within your radius' : 'strongest nationwide'})` }));
+    host.appendChild(el('div', {
+      class: 'muted', style: 'margin: 0 4px 8px; font-size: 11px',
+      text: 'The colored number matches the storm\'s circle on the radar map. Tap an entry to zoom the map to that storm.',
+    }));
   }
   for (const a of list) {
     const card = el('div', { class: 'card ai-block' });
     const head = el('div', { class: 'storm-card-head' });
     head.appendChild(el('strong', { text: `#${a.rank} ${a.cell.id} — ${a.type.label}` }));
-    if (a.userRel) head.appendChild(el('span', { class: 'muted', text: fmtDistance(a.userRel.distKm, settings.units) }));
+    head.appendChild(el('div', { style: 'display:flex;align-items:center;gap:8px' }, [
+      a.userRel ? el('span', { class: 'muted', text: fmtDistance(a.userRel.distKm, settings.units) }) : null,
+      el('span', { class: `score-pill ${scoreClass(a.severeScore)}`, text: String(a.severeScore) }),
+    ]));
     card.appendChild(head);
     card.appendChild(el('p', { style: 'margin-top:6px', text: stormSummary(a) }));
     const change = changeExplanation(a);
@@ -50,6 +57,12 @@ export function renderAiPanel(analyses, env, alerts, user, { onSelect }) {
     host.appendChild(card);
   }
 
+  if (hiddenCount > 0) {
+    host.appendChild(el('div', {
+      class: 'muted', style: 'text-align:center; padding: 6px; font-size: 11px',
+      text: `${hiddenCount} weaker storm${hiddenCount === 1 ? '' : 's'} hidden by your display filters (Settings → AI analyst).`,
+    }));
+  }
   host.appendChild(el('div', { class: 'ai-disclaimer', text: CONFIG.disclaimer }));
 }
 
