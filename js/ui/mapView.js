@@ -31,30 +31,36 @@ export class MapView {
       zoom: 5,
       zoomControl: false,
       attributionControl: true,
-      // Smooth pinch/pan feel.
       touchZoom: true,
       bounceAtZoomLimits: false,
-      zoomSnap: 0.25,
-      zoomDelta: 0.5,
-      wheelPxPerZoomLevel: 90,
+      // Whole-integer zoom steps keep tiles at native scale — fractional
+      // zooms force continuous CSS rescaling of every tile (heavy on iOS).
+      zoomSnap: 1,
+      zoomDelta: 1,
       inertia: true,
-      fadeAnimation: true,
+      fadeAnimation: false,       // tile cross-fade costs paint time on mobile
       preferCanvas: true,
+      // One shared canvas renderer with generous padding so pans/zooms
+      // reuse the already-drawn area instead of redrawing every frame.
+      renderer: L.canvas({ padding: 0.5 }),
     });
 
+    // Tile layers only fetch when the gesture settles — never mid-pinch.
+    const calmTiles = { updateWhenZooming: false, updateWhenIdle: true, keepBuffer: 2 };
+
     L.tileLayer(CONFIG.endpoints.basemapDark, {
-      attribution: '&copy; OSM &copy; CARTO', subdomains: 'abcd', maxZoom: 19,
+      attribution: '&copy; OSM &copy; CARTO', subdomains: 'abcd', maxZoom: 19, ...calmTiles,
     }).addTo(this.map);
 
     this.labelPane = this.map.createPane('labels');
     this.labelPane.style.zIndex = 420;
     this.labelPane.style.pointerEvents = 'none';
     L.tileLayer(CONFIG.endpoints.basemapLabels, {
-      pane: 'labels', subdomains: 'abcd', maxZoom: 19,
+      pane: 'labels', subdomains: 'abcd', maxZoom: 19, ...calmTiles,
     }).addTo(this.map);
 
     this.satelliteLayer = L.tileLayer(CONFIG.endpoints.basemapSatellite, {
-      attribution: 'Esri', maxZoom: 19, opacity: 0.85,
+      attribution: 'Esri', maxZoom: 19, opacity: 0.85, ...calmTiles,
     });
 
     // Overlay groups.
@@ -126,9 +132,16 @@ export class MapView {
     this.groups.watches.clearLayers();
     for (const a of alerts) {
       if (!a.geometry) continue;
-      const style = ALERT_STYLE[a.kind] || ALERT_STYLE.other;
+      // Misc statements ('other') stay in the Alerts panel but aren't drawn —
+      // hundreds of extra polygons make zooming stutter for no map value.
+      if (a.kind === 'other') continue;
+      const style = ALERT_STYLE[a.kind];
       const isWatch = a.kind.endsWith('watch');
-      const layer = L.geoJSON(a.geometry, { style });
+      // Watch outlines are county-aggregated MultiPolygons with thousands of
+      // vertices; a higher smoothFactor collapses sub-pixel detail so canvas
+      // redraws during zoom stay cheap. Storm-based warnings are small
+      // polygons and keep full fidelity.
+      const layer = L.geoJSON(a.geometry, { style, smoothFactor: isWatch ? 3 : 1.2 });
       layer.bindPopup(
         `<strong>${escape(a.event)}</strong><br>${escape(a.headline)}<br>` +
         `<em>${a.ends ? `until ${a.ends.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}` : ''}</em>`,
@@ -144,6 +157,7 @@ export class MapView {
       const color = SPC_STYLE[label] || '#64748b';
       const layer = L.geoJSON(f.geometry, {
         style: { color, weight: 1, fillColor: color, fillOpacity: 0.10, interactive: false },
+        smoothFactor: 2.5, // outlook areas are huge; fine detail is invisible anyway
       });
       this.groups.spcOutlook.addLayer(layer);
     }
