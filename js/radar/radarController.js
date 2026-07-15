@@ -1,0 +1,189 @@
+/**
+ * Radar controller: owns the Leaflet radar layers, product switching,
+ * single-site vs mosaic selection, smooth frame animation and playback.
+ *
+ * Animation approach: every frame is a live L.tileLayer kept in the map at
+ * opacity 0; playback only flips opacities, so frame changes never wait on
+ * the network and the loop runs at a stable frame rate.
+ */
+import { CONFIG } from '../config.js';
+import { settings } from '../storage.js';
+import { PRODUCTS, getProduct, colorTableFilter } from './products.js';
+import { fetchRadarSites } from '../api/iem.js';
+import { haversineKm } from '../utils.js';
+
+const IEM_TILES = CONFIG.endpoints.iemTiles;
+
+export class RadarController {
+  constructor(map, { onFrameChange, onProductChange, onNotice } = {}) {
+    this.map = map;
+    this.onFrameChange = onFrameChange || (() => {});
+    this.onProductChange = onProductChange || (() => {});
+    this.onNotice = onNotice || (() => {});
+
+    this.productId = CONFIG.radar.defaultProduct;
+    this.tiltIndex = 0;
+    this.site = null;          // nearest WSR-88D {id, name, lat, lon}
+    this.frames = [];          // [{layer, offsetMin}] oldest -> newest
+    this.frameIndex = 0;
+    this.playing = false;
+    this.playTimer = null;
+    this.refreshTimer = null;
+    this.paneName = 'radarPane';
+
+    const pane = map.createPane(this.paneName);
+    pane.style.zIndex = 350; // below overlays/markers, above basemap
+    this.applyStyle();
+  }
+
+  /** Apply opacity + colour table + smoothing to the radar pane. */
+  applyStyle() {
+    const pane = this.map.getPane(this.paneName);
+    pane.style.opacity = settings.radarOpacity;
+    pane.style.filter = colorTableFilter(settings.colorTable, settings.radarSmoothing);
+    pane.style.imageRendering = settings.radarSmoothing ? 'auto' : 'pixelated';
+  }
+
+  /** Choose the nearest radar site to a point (for single-site products). */
+  async pickSite(lat, lon) {
+    const sites = await fetchRadarSites();
+    let best = null, bestD = Infinity;
+    for (const s of sites) {
+      const d = haversineKm(lat, lon, s.lat, s.lon);
+      if (d < bestD) { bestD = d; best = s; }
+    }
+    if (best && (!this.site || best.id !== this.site.id)) {
+      this.site = best;
+      const prod = getProduct(this.productId);
+      if (prod?.mode === 'site') this.rebuild();
+    }
+    return this.site;
+  }
+
+  setProduct(id) {
+    const prod = getProduct(id);
+    if (!prod) return;
+    if (!prod.available) {
+      this.onNotice(`${prod.name}: ${prod.unavailableNote}`);
+      return; // keep the current layer on screen
+    }
+    this.productId = id;
+    this.tiltIndex = 0;
+    this.rebuild();
+    this.onProductChange(prod);
+  }
+
+  /** Cycle radar tilt for multi-tilt products (repeat-tap on active product). */
+  cycleTilt() {
+    const prod = getProduct(this.productId);
+    if (!prod?.tilts || prod.tilts.length < 2) return null;
+    this.tiltIndex = (this.tiltIndex + 1) % prod.tilts.length;
+    this.rebuild();
+    return this.tiltIndex;
+  }
+
+  /** Build tile URL for a product/frame. */
+  frameUrl(prod, frameOffset) {
+    if (prod.mode === 'mosaic' || (prod.mosaicFallback && !this.site)) {
+      const layer = prod.layer || 'nexrad-n0q-900913';
+      const suffix = frameOffset === 0
+        ? '' : `-m${String(frameOffset).padStart(2, '0')}m`;
+      return `${IEM_TILES}/${layer}${suffix}/{z}/{x}/{y}.png`;
+    }
+    // Single-site "ridge" cache keeps the 5 most recent scans per product.
+    const tiltProd = prod.tilts ? prod.tilts[this.tiltIndex] : prod.id;
+    const idx = Math.round(frameOffset / CONFIG.radar.frameStepMin);
+    return `${IEM_TILES}/ridge::${this.site.id}-${tiltProd}-${Math.min(idx, 4)}/{z}/{x}/{y}.png`;
+  }
+
+  /** Tear down and recreate all animation frames for the current product. */
+  rebuild() {
+    const prod = getProduct(this.productId);
+    if (!prod || !prod.available) return;
+
+    this.stop();
+    for (const f of this.frames) this.map.removeLayer(f.layer);
+    this.frames = [];
+
+    const isMosaic = prod.mode === 'mosaic' || (prod.mosaicFallback && !this.site);
+    const frameCount = isMosaic ? CONFIG.radar.frameCount : 5;
+    const step = CONFIG.radar.frameStepMin;
+
+    for (let i = frameCount - 1; i >= 0; i--) {
+      const offsetMin = i * step;
+      const layer = L.tileLayer(this.frameUrl(prod, offsetMin), {
+        pane: this.paneName,
+        opacity: 0,
+        maxNativeZoom: 10,
+        maxZoom: 16,
+        updateWhenZooming: false,
+        keepBuffer: 4,
+        attribution: 'NEXRAD via IEM/NOAA',
+        crossOrigin: true,
+      });
+      layer.addTo(this.map);
+      this.frames.push({ layer, offsetMin });
+    }
+    this.frameIndex = this.frames.length - 1; // newest
+    this.showFrame(this.frameIndex);
+
+    // Live refresh: re-key the newest frame's tiles on the user cadence.
+    clearInterval(this.refreshTimer);
+    this.refreshTimer = setInterval(
+      () => this.refreshLive(),
+      Math.max(30, settings.refreshIntervalSec) * 1000,
+    );
+  }
+
+  /** Force the newest frame to re-download (cache-busted) tiles. */
+  refreshLive() {
+    const newest = this.frames[this.frames.length - 1];
+    if (!newest) return;
+    const prod = getProduct(this.productId);
+    newest.layer.setUrl(`${this.frameUrl(prod, 0)}?t=${Math.floor(Date.now() / 30000)}`);
+  }
+
+  showFrame(idx) {
+    this.frameIndex = Math.max(0, Math.min(this.frames.length - 1, idx));
+    this.frames.forEach((f, i) => f.layer.setOpacity(i === this.frameIndex ? 1 : 0));
+    const f = this.frames[this.frameIndex];
+    this.onFrameChange({
+      index: this.frameIndex,
+      total: this.frames.length,
+      offsetMin: f?.offsetMin ?? 0,
+      isLive: this.frameIndex === this.frames.length - 1,
+    });
+  }
+
+  play() {
+    if (this.playing || this.frames.length < 2) return;
+    this.playing = true;
+    const tick = () => {
+      if (!this.playing) return;
+      const next = (this.frameIndex + 1) % this.frames.length;
+      this.showFrame(next);
+      // Dwell on the newest frame so "now" is readable in the loop.
+      const dwell = next === this.frames.length - 1 ? 3 : 1;
+      this.playTimer = setTimeout(tick, (1000 / Math.max(1, settings.animFps)) * dwell);
+    };
+    tick();
+  }
+
+  stop() {
+    this.playing = false;
+    clearTimeout(this.playTimer);
+  }
+
+  toggle() {
+    this.playing ? this.stop() : this.play();
+    return this.playing;
+  }
+
+  get productList() {
+    return PRODUCTS;
+  }
+
+  get currentProduct() {
+    return getProduct(this.productId);
+  }
+}

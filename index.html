@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
+  <title>StormLens — AI Storm Analysis</title>
+  <meta name="description" content="AI-powered storm chasing and tornado analysis. Live radar, storm cell scoring, and plain-English severe weather interpretation. Not an official NWS product.">
+
+  <!-- PWA / iOS installability -->
+  <link rel="manifest" href="manifest.webmanifest">
+  <meta name="theme-color" content="#0b0f14">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="StormLens">
+  <link rel="apple-touch-icon" href="icons/icon-180.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+
+  <!-- Leaflet 1.9.4, vendored locally so the app shell works fully offline -->
+  <link rel="stylesheet" href="vendor/leaflet/leaflet.css">
+  <script src="vendor/leaflet/leaflet.js" defer></script>
+
+  <link rel="stylesheet" href="css/main.css">
+</head>
+<body>
+  <!-- ============ App shell ============ -->
+  <div id="app" class="app">
+
+    <!-- Top status bar -->
+    <header class="topbar" id="topbar">
+      <button class="icon-btn" id="btn-menu" aria-label="Menu">&#9776;</button>
+      <div class="topbar-title">
+        <span class="brand">StormLens</span>
+        <span class="data-clock" id="data-clock">--:--Z</span>
+      </div>
+      <div class="topbar-status">
+        <span class="net-dot" id="net-dot" title="Data feed status"></span>
+        <button class="icon-btn" id="btn-locate" aria-label="Locate me">&#9678;</button>
+      </div>
+    </header>
+
+    <!-- AI headline ticker: one-line rolling summary of the most dangerous nearby storm -->
+    <div class="ai-ticker" id="ai-ticker" hidden>
+      <span class="ai-ticker-badge">AI</span>
+      <span class="ai-ticker-text" id="ai-ticker-text"></span>
+    </div>
+
+    <!-- Map -->
+    <main class="map-wrap">
+      <div id="map" aria-label="Radar map"></div>
+
+      <!-- Radar product selector (left rail) -->
+      <div class="product-rail" id="product-rail" role="toolbar" aria-label="Radar products"></div>
+
+      <!-- Radar animation controls -->
+      <div class="anim-bar" id="anim-bar">
+        <button class="anim-btn" id="btn-play" aria-label="Play radar loop">&#9654;</button>
+        <input type="range" id="anim-scrub" class="anim-scrub" min="0" max="10" value="10" aria-label="Radar frame">
+        <span class="anim-time" id="anim-time">LIVE</span>
+      </div>
+
+      <!-- Colour table legend -->
+      <div class="legend" id="legend" hidden></div>
+
+      <!-- GPS proximity chip -->
+      <div class="gps-chip" id="gps-chip" hidden></div>
+    </main>
+
+    <!-- Permanent disclaimer (shown on first launch; inline disclaimers
+         appear in every AI panel regardless) -->
+    <footer class="disclaimer" id="disclaimer">
+      AI analysis is an automated interpretation of public weather data — <strong>not</strong> an official NWS warning or forecast.
+    </footer>
+
+    <!-- Bottom navigation -->
+    <nav class="tabbar" id="tabbar">
+      <button class="tab active" data-panel="map">Radar</button>
+      <button class="tab" data-panel="storms">Storms</button>
+      <button class="tab" data-panel="alerts">Alerts<span class="tab-badge" id="alert-badge" hidden></span></button>
+      <button class="tab" data-panel="ai">AI Analyst</button>
+      <button class="tab" data-panel="settings">Settings</button>
+    </nav>
+
+    <!-- Sliding panels (storms / alerts / AI / settings / layers) -->
+    <section class="panel" id="panel-storms" hidden>
+      <header class="panel-head"><h2>Storm Cells</h2><button class="icon-btn panel-close">&times;</button></header>
+      <div class="panel-body" id="storm-list"></div>
+    </section>
+
+    <section class="panel" id="panel-alerts" hidden>
+      <header class="panel-head"><h2>Active Alerts</h2><button class="icon-btn panel-close">&times;</button></header>
+      <div class="panel-body" id="alert-list"></div>
+    </section>
+
+    <section class="panel" id="panel-ai" hidden>
+      <header class="panel-head"><h2>AI Meteorologist</h2><button class="icon-btn panel-close">&times;</button></header>
+      <div class="panel-body" id="ai-analysis"></div>
+    </section>
+
+    <section class="panel" id="panel-settings" hidden>
+      <header class="panel-head"><h2>Settings</h2><button class="icon-btn panel-close">&times;</button></header>
+      <div class="panel-body" id="settings-body"></div>
+    </section>
+
+    <section class="panel" id="panel-layers" hidden>
+      <header class="panel-head"><h2>Map Layers</h2><button class="icon-btn panel-close">&times;</button></header>
+      <div class="panel-body" id="layers-body"></div>
+    </section>
+
+    <!-- Storm detail sheet (tap a cell) -->
+    <section class="sheet" id="storm-sheet" hidden>
+      <div class="sheet-grab"></div>
+      <div class="sheet-body" id="storm-sheet-body"></div>
+    </section>
+
+    <!-- Toast / in-app alert banners -->
+    <div class="toasts" id="toasts" aria-live="polite"></div>
+  </div>
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
