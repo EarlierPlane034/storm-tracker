@@ -73,10 +73,13 @@ async function main() {
     const c = mapView.map.getCenter();
     sources.setFocusPoint(c.lat, c.lng);
     const site = await radar.pickSite(c.lat, c.lng);
+    renderProductRail(); // keep the 📡 site chip current
     if (settings.layers.radarSites && site) {
-      mapView.renderRadarSites(await fetchRadarSites(), site.id);
+      mapView.renderRadarSites(await fetchRadarSites(), site.id,
+        (id) => radar.setSite(id, c.lat, c.lng).then(renderProductRail));
     }
   }, 600));
+  mapView.map.on('click', () => { document.getElementById('site-picker').hidden = true; });
 
   // ---- Data subscriptions ----------------------------------------------------
   sources.subscribe('cells', reanalyze);
@@ -207,6 +210,18 @@ function updateGpsChip(user) {
 function renderProductRail() {
   const rail = document.getElementById('product-rail');
   rail.textContent = '';
+
+  // Radar site chip: shows the active single-site radar; tap to choose.
+  const siteLabel = settings.radarSite === 'auto'
+    ? `📡 ${radar.site ? radar.site.id : 'AUTO'}`
+    : `📡 ${settings.radarSite} 📌`;
+  rail.appendChild(el('button', {
+    class: 'product-btn site-chip', id: 'site-chip',
+    text: siteLabel,
+    title: 'Choose radar site',
+    onclick: toggleSitePicker,
+  }));
+
   for (const prod of radar.productList) {
     const active = prod.id === radar.productId;
     const tiltSuffix = active && prod.tilts && radar.tiltIndex > 0 ? ` T${radar.tiltIndex + 1}` : '';
@@ -225,6 +240,45 @@ function renderProductRail() {
       },
     });
     rail.appendChild(btn);
+  }
+}
+
+/* ---------------- Radar site picker ---------------- */
+
+async function toggleSitePicker() {
+  const picker = document.getElementById('site-picker');
+  if (!picker.hidden) { picker.hidden = true; return; }
+  picker.hidden = false;
+  picker.textContent = '';
+  picker.appendChild(el('div', { class: 'site-picker-title', text: 'Radar site (single-site products)' }));
+
+  const c = mapView.map.getCenter();
+  const pick = async (id) => {
+    picker.hidden = true;
+    await radar.setSite(id, c.lat, c.lng);
+    renderProductRail();
+    showToast(id === 'auto'
+      ? 'Radar site: automatic — follows the map.'
+      : `Radar site pinned to ${id}. It will stay put until you change it.`);
+  };
+
+  picker.appendChild(el('button', {
+    class: `site-option ${settings.radarSite === 'auto' ? 'active' : ''}`,
+    html: '<strong>Auto</strong> — always use the nearest site to the map',
+    onclick: () => pick('auto'),
+  }));
+
+  const sites = await fetchRadarSites();
+  const sorted = [...sites]
+    .map((s) => ({ ...s, d: haversineKm(c.lat, c.lng, s.lat, s.lon) }))
+    .sort((a, b) => a.d - b.d)
+    .slice(0, 12);
+  for (const s of sorted) {
+    picker.appendChild(el('button', {
+      class: `site-option ${settings.radarSite === s.id ? 'active' : ''}`,
+      html: `<strong>${s.id}</strong> ${escapeHud(s.name)} <span class="muted">${fmtDistance(s.d, settings.units)}</span>`,
+      onclick: () => pick(s.id),
+    }));
   }
 }
 

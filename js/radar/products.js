@@ -26,7 +26,7 @@ export const PRODUCTS = [
   {
     id: 'N0U', label: 'VEL', name: 'Base Velocity',
     mode: 'site', tilts: ['N0U', 'N1U', 'N2U', 'N3U'],
-    unit: 'kt', available: true,
+    unit: 'kt', available: true, mayBeMissing: true,
     legend: { stops: ['#00e0a0', '#00b070', '#007a4a', '#0a3d2e', '#3d0a0a', '#7a1f1f', '#c03030', '#ff5050'], min: -70, max: 70, note: 'green = toward radar' },
   },
   {

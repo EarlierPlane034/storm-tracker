@@ -7,7 +7,7 @@
  * the network and the loop runs at a stable frame rate.
  */
 import { CONFIG } from '../config.js';
-import { settings } from '../storage.js';
+import { settings, saveSettings } from '../storage.js';
 import { PRODUCTS, getProduct, colorTableFilter } from './products.js';
 import { fetchRadarSites } from '../api/iem.js';
 import { haversineKm } from '../utils.js';
@@ -44,20 +44,39 @@ export class RadarController {
     pane.style.imageRendering = settings.radarSmoothing ? 'auto' : 'pixelated';
   }
 
-  /** Choose the nearest radar site to a point (for single-site products). */
+  /**
+   * Resolve the active radar site. Respects a manually pinned site
+   * (settings.radarSite) — auto-switching to the nearest site only happens
+   * in 'auto' mode, so panning the map never yanks the radar out from
+   * under the user mid-analysis.
+   */
   async pickSite(lat, lon) {
     const sites = await fetchRadarSites();
-    let best = null, bestD = Infinity;
-    for (const s of sites) {
-      const d = haversineKm(lat, lon, s.lat, s.lon);
-      if (d < bestD) { bestD = d; best = s; }
+    let next = null;
+    if (settings.radarSite && settings.radarSite !== 'auto') {
+      next = sites.find((s) => s.id === settings.radarSite) || null;
     }
-    if (best && (!this.site || best.id !== this.site.id)) {
-      this.site = best;
+    if (!next) {
+      let bestD = Infinity;
+      for (const s of sites) {
+        const d = haversineKm(lat, lon, s.lat, s.lon);
+        if (d < bestD) { bestD = d; next = s; }
+      }
+    }
+    if (next && (!this.site || next.id !== this.site.id)) {
+      this.site = next;
       const prod = getProduct(this.productId);
-      if (prod?.mode === 'site') this.rebuild();
+      if (prod?.mode === 'site' || prod?.mosaicFallback) this.rebuild();
     }
     return this.site;
+  }
+
+  /** Manually pin a site ('auto' returns to nearest-site behaviour). */
+  async setSite(idOrAuto, centerLat, centerLon) {
+    settings.radarSite = idOrAuto;
+    saveSettings();
+    this.site = null; // force re-resolution + rebuild
+    return this.pickSite(centerLat, centerLon);
   }
 
   setProduct(id) {
@@ -135,7 +154,12 @@ export class RadarController {
     const f = this.frames[i];
     if (!f || f.layer) return;
     const prod = getProduct(this.productId);
-    f.layer = L.tileLayer(this.frameUrl(prod, f.offsetMin), {
+    const isSiteMode = prod.mode === 'site' && this.site;
+    // Single-site products only have data within ~230 km of the radar.
+    // Bounding the layer stops Leaflet requesting hundreds of guaranteed-404
+    // tiles when the map is panned/zoomed away — the main cause of velocity
+    // feeling laggy and "empty".
+    const opts = {
       pane: this.paneName,
       opacity: 0,
       maxNativeZoom: 10,
@@ -145,7 +169,14 @@ export class RadarController {
       keepBuffer: 1,
       attribution: 'NEXRAD via IEM/NOAA',
       crossOrigin: true,
-    });
+    };
+    if (isSiteMode) {
+      opts.bounds = L.latLngBounds(
+        [this.site.lat - 2.5, this.site.lon - 3.2],
+        [this.site.lat + 2.5, this.site.lon + 3.2],
+      );
+    }
+    f.layer = L.tileLayer(this.frameUrl(prod, f.offsetMin), opts);
     // Some optional layers (satellite, SRV) may not be served for every
     // sector/time; tell the user once instead of failing silently.
     if (prod.mayBeMissing) {

@@ -15,6 +15,7 @@ export const DEFAULT_SETTINGS = {
   nightMode: false,             // dim red theme for night driving
   chaseMode: false,             // chaser HUD + screen wake lock
   colorTable: 'classic',        // 'classic' | 'enhanced' | 'grayscale'
+  radarSite: 'auto',            // 'auto' (nearest) or a WSR-88D id like 'KTLX'
   monitorRadiusKm: CONFIG.analysis.monitorRadiusKm,
   minCellScore: 0,              // hide storms scoring below this (map + lists)
   onlyNearby: false,            // only show storms within monitorRadiusKm

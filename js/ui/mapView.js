@@ -271,14 +271,15 @@ export class MapView {
     }
   }
 
-  renderRadarSites(sites, activeSiteId) {
+  renderRadarSites(sites, activeSiteId, onPick) {
     this.groups.radarSites.clearLayers();
     for (const s of sites) {
       const m = L.circleMarker([s.lat, s.lon], {
-        radius: 4,
+        radius: 5,
         color: s.id === activeSiteId ? '#38bdf8' : '#475569',
         fillOpacity: 0.8, weight: 1.5,
-      }).bindTooltip(`${s.id} ${s.name}`);
+      }).bindTooltip(`${s.id} ${s.name} — tap to use this radar`);
+      if (onPick) m.on('click', () => onPick(s.id));
       this.groups.radarSites.addLayer(m);
     }
   }
