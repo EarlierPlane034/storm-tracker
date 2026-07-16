@@ -5,7 +5,7 @@
  */
 import { CONFIG } from '../config.js';
 import { settings } from '../storage.js';
-import { destinationPoint, fmtSpeed, compassDir } from '../utils.js';
+import { destinationPoint, fmtSpeed, compassDir, haversineKm, bearingDeg, fmtDistance } from '../utils.js';
 
 const ALERT_STYLE = {
   'tor-warning': { color: '#ef4444', weight: 2.5, fillOpacity: 0.12 },
@@ -74,10 +74,30 @@ export class MapView {
       metar: L.layerGroup(),
       counties: L.layerGroup(),
       radarSites: L.layerGroup(),
+      rangeRings: L.layerGroup(),
     };
     this.syncLayerVisibility();
 
     this.userMarker = null;
+
+    // Long-press (contextmenu on mobile Leaflet) = measure from your
+    // position to that point: distance, bearing and a rough drive time.
+    this.map.on('contextmenu', (e) => {
+      const user = this._lastUser;
+      const { lat, lng } = e.latlng;
+      let html;
+      if (user) {
+        const km = haversineKm(user.lat, user.lon, lat, lng);
+        const brg = bearingDeg(user.lat, user.lon, lat, lng);
+        const driveMin = Math.round((km / 88) * 60); // ~55 mph average
+        html = `<strong>${fmtDistance(km, settings.units)} ${compassDir(brg)}</strong> of you` +
+          `<br>~${driveMin} min drive` +
+          `<br><span style="font-family:monospace;font-size:10px">${lat.toFixed(4)}, ${lng.toFixed(4)}</span>`;
+      } else {
+        html = `<span style="font-family:monospace">${lat.toFixed(4)}, ${lng.toFixed(4)}</span><br>Enable location (⌖) for distance/bearing.`;
+      }
+      L.popup({ closeButton: true }).setLatLng(e.latlng).setContent(html).openOn(this.map);
+    });
   }
 
   syncLayerVisibility() {
@@ -94,6 +114,8 @@ export class MapView {
   }
 
   setUserLocation(lat, lon, accuracyM) {
+    this._lastUser = { lat, lon };
+    this.renderRangeRings(lat, lon);
     if (!this.userMarker) {
       this.userMarker = L.circleMarker([lat, lon], {
         radius: 7, color: '#38bdf8', fillColor: '#38bdf8',
@@ -125,6 +147,30 @@ export class MapView {
     this._focusTimer = setTimeout(() => {
       if (this._focusRing) { this.map.removeLayer(this._focusRing); this._focusRing = null; }
     }, 8000);
+  }
+
+  /** Classic radar-app range rings (25/50/100 mi) centered on the user. */
+  renderRangeRings(lat, lon) {
+    this.groups.rangeRings.clearLayers();
+    const isMetric = settings.units === 'metric';
+    const rings = isMetric ? [40, 80, 160] : [40.2, 80.5, 160.9]; // km
+    const labels = isMetric ? ['40 km', '80 km', '160 km'] : ['25 mi', '50 mi', '100 mi'];
+    rings.forEach((km, i) => {
+      this.groups.rangeRings.addLayer(L.circle([lat, lon], {
+        radius: km * 1000, color: '#475569', weight: 1,
+        fill: false, dashArray: '4 6', interactive: false,
+      }));
+      // Label at the top of each ring.
+      const top = destinationPoint(lat, lon, 0, km);
+      this.groups.rangeRings.addLayer(L.marker(top, {
+        icon: L.divIcon({
+          className: '',
+          html: `<div style="font:600 9px monospace;color:#64748b;transform:translate(-50%,-100%)">${labels[i]}</div>`,
+          iconSize: null,
+        }),
+        interactive: false,
+      }));
+    });
   }
 
   /**

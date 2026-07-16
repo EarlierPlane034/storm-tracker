@@ -67,6 +67,66 @@ function classifyEvent(event, description) {
   return 'other';
 }
 
+/**
+ * Official NWS point forecast bundle: 7-day periods, next-24h hourly
+ * temps/precip, and the local office's Area Forecast Discussion (the
+ * forecaster-written technical discussion storm chasers read daily).
+ */
+export async function fetchForecastBundle(lat, lon) {
+  const out = { daily: [], hourly: [], afd: null, office: null };
+  try {
+    const pt = await getJSON(
+      `${BASE}/points/${lat.toFixed(4)},${lon.toFixed(4)}`,
+      { cacheMs: 3_600_000 },
+    );
+    const p = pt.properties || {};
+    out.office = p.cwa || null;
+
+    if (p.forecast) {
+      try {
+        const f = await getJSON(p.forecast, { cacheMs: 1_800_000 });
+        out.daily = (f.properties?.periods || []).slice(0, 14).map((pd) => ({
+          name: pd.name,
+          tempF: pd.temperature,
+          isDay: pd.isDaytime,
+          short: pd.shortForecast,
+          detailed: pd.detailedForecast,
+          precip: pd.probabilityOfPrecipitation?.value ?? null,
+        }));
+      } catch { /* forecast grid can 500 sporadically */ }
+    }
+
+    if (p.forecastHourly) {
+      try {
+        const fh = await getJSON(p.forecastHourly, { cacheMs: 1_800_000 });
+        out.hourly = (fh.properties?.periods || []).slice(0, 24).map((pd) => ({
+          t: new Date(pd.startTime).getTime(),
+          tempF: pd.temperature,
+          precip: pd.probabilityOfPrecipitation?.value ?? 0,
+        }));
+      } catch { /* optional */ }
+    }
+
+    if (p.cwa) {
+      try {
+        const list = await getJSON(
+          `${BASE}/products/types/AFD/locations/${p.cwa}`,
+          { cacheMs: 1_800_000 },
+        );
+        const latest = list['@graph']?.[0];
+        if (latest?.['@id']) {
+          const prod = await getJSON(latest['@id'], { cacheMs: 1_800_000 });
+          out.afd = {
+            time: prod.issuanceTime ? new Date(prod.issuanceTime) : null,
+            text: (prod.productText || '').slice(0, 20_000),
+          };
+        }
+      } catch { /* optional */ }
+    }
+  } catch { /* points lookup failed; return empty bundle */ }
+  return out;
+}
+
 /** Nearest observation stations to a point (METAR-style surface obs). */
 export async function fetchNearbyObservations(lat, lon) {
   try {

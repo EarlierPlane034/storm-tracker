@@ -1,6 +1,8 @@
 /** Settings panel: units, refresh, radar, AI + notification sensitivity, favorites. */
-import { el } from '../utils.js';
+import { el, fmtRelTime } from '../utils.js';
 import { settings, setSetting } from '../storage.js';
+import { renderJournalSection } from './journal.js';
+import { getState } from '../api/sources.js';
 
 export function renderSettings({ onChanged, onRequestNotifications, onRouteCheck, onConnectPush, onDisconnectPush }) {
   const host = document.getElementById('settings-body');
@@ -149,6 +151,27 @@ export function renderSettings({ onChanged, onRequestNotifications, onRouteCheck
     el('button', { class: 'product-btn', text: 'Clear', onclick: () => onRouteCheck?.(null) }),
   ]));
   host.appendChild(el('div', { class: 'muted', style: 'font-size:11px;margin:0 4px', text: 'Draws the driving route from your location (or the map centre) and reports which tracked storms pass near it.' }));
+
+  section('Chase journal');
+  renderJournalSection(host, { onChanged: () => onChanged('journal.refresh') });
+
+  section('Data feeds (last update)');
+  const feeds = [
+    ['cells', 'Storm cells'], ['alerts', 'NWS alerts'], ['reports', 'Storm reports'],
+    ['environment', 'Model environment'], ['forecast', 'NWS forecast'],
+    ['outlook', 'SPC outlook'], ['week', 'Week outlook'],
+  ];
+  const updated = getState().lastUpdated || {};
+  for (const [key, label] of feeds) {
+    const at = updated[key];
+    host.appendChild(el('div', { class: 'setting-row', style: 'padding:7px 4px' }, [
+      el('label', { text: label }),
+      el('span', {
+        class: 'muted', style: 'font-family:var(--mono);font-size:11px',
+        text: at ? fmtRelTime(new Date(at)) : 'not yet',
+      }),
+    ]));
+  }
 
   host.appendChild(el('div', {
     class: 'ai-disclaimer', style: 'margin-top:16px',

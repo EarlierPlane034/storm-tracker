@@ -43,6 +43,7 @@ export const DEFAULT_SETTINGS = {
     metar: false,
     counties: false,
     radarSites: false,
+    rangeRings: false,
     satellite: false,
   },
   favorites: [],                // [{name, lat, lon}]

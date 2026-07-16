@@ -125,6 +125,40 @@ export function escapeHtml(s) {
   ));
 }
 
+/**
+ * Approximate sunrise/sunset (NOAA solar equations, ±2 min) for a date
+ * and location. Good enough for "daylight remaining" in chase mode.
+ */
+export function sunTimes(lat, lon, date = new Date()) {
+  const rad = Math.PI / 180;
+  const dayOfYear = Math.floor(
+    (date - new Date(date.getFullYear(), 0, 0)) / 86400000);
+  const calc = (isSunrise) => {
+    const lngHour = lon / 15;
+    const t = dayOfYear + ((isSunrise ? 6 : 18) - lngHour) / 24;
+    const M = 0.9856 * t - 3.289;
+    let L = M + 1.916 * Math.sin(M * rad) + 0.020 * Math.sin(2 * M * rad) + 282.634;
+    L = ((L % 360) + 360) % 360;
+    let RA = Math.atan(0.91764 * Math.tan(L * rad)) / rad;
+    RA = ((RA % 360) + 360) % 360;
+    RA += (Math.floor(L / 90) * 90 - Math.floor(RA / 90) * 90);
+    RA /= 15;
+    const sinDec = 0.39782 * Math.sin(L * rad);
+    const cosDec = Math.cos(Math.asin(sinDec));
+    const cosH = (Math.cos(90.833 * rad) - sinDec * Math.sin(lat * rad)) /
+      (cosDec * Math.cos(lat * rad));
+    if (cosH > 1 || cosH < -1) return null; // polar day/night
+    let H = isSunrise ? 360 - Math.acos(cosH) / rad : Math.acos(cosH) / rad;
+    H /= 15;
+    const T = H + RA - 0.06571 * t - 6.622;
+    let UT = ((T - lngHour) % 24 + 24) % 24;
+    const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+    d.setUTCMinutes(Math.round(UT * 60));
+    return d;
+  };
+  return { sunrise: calc(true), sunset: calc(false) };
+}
+
 export function debounce(fn, ms) {
   let id;
   return (...args) => {

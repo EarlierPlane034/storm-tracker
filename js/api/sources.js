@@ -7,13 +7,14 @@
 import { CONFIG } from '../config.js';
 import { settings } from '../storage.js';
 import { fetchStormCells, fetchStormReports, fetchSpcOutlook } from './iem.js';
-import { fetchSevereAlerts, fetchNearbyObservations } from './nws.js';
+import { fetchSevereAlerts, fetchNearbyObservations, fetchForecastBundle } from './nws.js';
 import { fetchEnvironment, fetchWeekOutlook } from './openmeteo.js';
 
 const listeners = new Map(); // stream -> Set<fn>
 const state = {
   cells: [], alerts: [], reports: [], outlook: [],
   outlookDay2: [], outlookDay3: [], week: [],
+  forecast: { daily: [], hourly: [], afd: null, office: null },
   environment: null, obs: [],
   lastUpdated: {},
 };
@@ -48,6 +49,7 @@ export function setFocusPoint(lat, lon) {
     refreshEnvironment();
     refreshObservations();
     refreshWeek();
+    refreshForecast();
   }
 }
 
@@ -83,6 +85,12 @@ async function refreshWeek() {
   catch (err) { console.warn('[sources] week outlook refresh failed', err); }
 }
 
+async function refreshForecast() {
+  if (!focusPoint) return;
+  try { emit('forecast', await fetchForecastBundle(focusPoint.lat, focusPoint.lon)); }
+  catch (err) { console.warn('[sources] forecast refresh failed', err); }
+}
+
 async function refreshEnvironment() {
   if (!focusPoint) return;
   try { emit('environment', await fetchEnvironment(focusPoint.lat, focusPoint.lon)); }
@@ -110,6 +118,7 @@ export function start() {
   timers.push(setInterval(refreshEnvironment, CONFIG.refresh.environmentMs));
   timers.push(setInterval(refreshObservations, CONFIG.refresh.reportsMs));
   timers.push(setInterval(refreshWeek, 3 * 3600_000));
+  timers.push(setInterval(refreshForecast, 1800_000));
 
   // Refresh instantly when the PWA returns to the foreground — the primary
   // "background sync" path on iOS where the SyncManager API is unavailable.
