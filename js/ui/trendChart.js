@@ -178,3 +178,82 @@ export function attachTrendInteraction(canvas, samples, opts) {
 function roundNice(v) {
   return Math.abs(v) >= 10 ? Math.round(v) : Math.round(v * 10) / 10;
 }
+
+/**
+ * Hodograph: the wind profile (sfc → 850 → 700 → 500 hPa) plotted as a
+ * connected path in u/v space, with the estimated storm motion marked.
+ * Curved, clockwise-turning hodographs = rotation-friendly environments.
+ * Single path + one marker; labels wear text ink, not series color.
+ */
+export function drawHodograph(canvas, env) {
+  const profile = env?.windProfile;
+  const levels = [
+    ['sfc', profile?.sfc], ['850', profile?.w850],
+    ['700', profile?.w700], ['500', profile?.w500],
+  ].filter(([, w]) => w);
+  if (levels.length < 2) return false;
+
+  const dpr = window.devicePixelRatio || 1;
+  const cssW = canvas.clientWidth || 300;
+  const cssH = canvas.clientHeight || 180;
+  canvas.width = cssW * dpr;
+  canvas.height = cssH * dpr;
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+  ctx.clearRect(0, 0, cssW, cssH);
+
+  const cx = cssW / 2, cy = cssH / 2;
+  const maxKt = Math.max(40, ...levels.map(([, w]) => Math.hypot(w.u, w.v))) * 1.15;
+  const R = Math.min(cssW, cssH) / 2 - 14;
+  const X = (u) => cx + (u / maxKt) * R;
+  const Y = (v) => cy - (v / maxKt) * R;
+
+  // Recessive speed rings every 20 kt.
+  ctx.strokeStyle = INK.grid;
+  ctx.fillStyle = INK.secondary;
+  ctx.font = '9px -apple-system, sans-serif';
+  ctx.lineWidth = 1;
+  for (let kt = 20; kt <= maxKt; kt += 20) {
+    ctx.beginPath();
+    ctx.arc(cx, cy, (kt / maxKt) * R, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.fillText(`${kt}`, cx + (kt / maxKt) * R - 12, cy - 3);
+  }
+
+  // The hodograph path (2px, validated blue).
+  ctx.beginPath();
+  levels.forEach(([, w], i) => (i ? ctx.lineTo(X(w.u), Y(w.v)) : ctx.moveTo(X(w.u), Y(w.v))));
+  ctx.strokeStyle = '#3987e5';
+  ctx.lineWidth = 2;
+  ctx.lineJoin = 'round';
+  ctx.stroke();
+
+  // Level dots + labels (ink, with a surface ring on the dots).
+  for (const [name, w] of levels) {
+    ctx.beginPath();
+    ctx.arc(X(w.u), Y(w.v), 3.5, 0, Math.PI * 2);
+    ctx.fillStyle = '#3987e5';
+    ctx.fill();
+    ctx.strokeStyle = '#121821';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    ctx.fillStyle = INK.primary;
+    ctx.font = '600 9px -apple-system, sans-serif';
+    ctx.fillText(name, X(w.u) + 6, Y(w.v) - 4);
+  }
+
+  // Estimated storm motion (magenta X).
+  const m = env.stormMotion;
+  if (m) {
+    const x = X(m.u), y = Y(m.v);
+    ctx.strokeStyle = '#d55181';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(x - 4, y - 4); ctx.lineTo(x + 4, y + 4);
+    ctx.moveTo(x + 4, y - 4); ctx.lineTo(x - 4, y + 4);
+    ctx.stroke();
+    ctx.fillStyle = INK.secondary;
+    ctx.fillText('storm', x + 6, y + 3);
+  }
+  return true;
+}

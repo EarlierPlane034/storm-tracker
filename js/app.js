@@ -11,7 +11,7 @@ import { RadarController } from './radar/radarController.js';
 import { MapView } from './ui/mapView.js';
 import { analyzeStorms } from './analysis/stormAnalyzer.js';
 import { rememberAnalysis, tickerHeadline } from './analysis/narrative.js';
-import { renderStormList, openStormSheet, initStormSheet } from './ui/stormPanel.js';
+import { renderStormList, openStormSheet, initStormSheet, configureStormSheet } from './ui/stormPanel.js';
 import { renderAlerts } from './ui/alertsPanel.js';
 import { renderAiPanel } from './ui/aiPanel.js';
 import { renderSettings } from './ui/settingsPanel.js';
@@ -20,9 +20,12 @@ import { showToast } from './ui/toasts.js';
 import * as geo from './location.js';
 import { evaluateAlerts, evaluateStorms, requestNotificationPermission } from './alerts/alertEngine.js';
 import { fetchRadarSites } from './api/iem.js';
+import { getJSON } from './api/client.js';
+import { haversineKm, destinationPoint } from './utils.js';
 
 let mapView, radar;
 let analyses = [];
+let route = null; // { name, coords: [[lat,lon],...] }
 
 /** Leaflet loads via a deferred CDN script; wait for it before map init. */
 function whenLeafletReady() {
@@ -51,8 +54,12 @@ async function main() {
   renderProductRail();
   renderLegend(radar.currentProduct);
   initStormSheet();
+  configureStormSheet({
+    ghost: (latlon) => (latlon ? mapView.setGhost(latlon[0], latlon[1]) : mapView.clearGhost()),
+  });
   wireChrome();
   wireAnimBar();
+  applyTheme();
 
   // Recompute nearest radar site + environment focus when the map settles.
   mapView.map.on('moveend', debounce(async () => {
@@ -146,7 +153,9 @@ const reanalyze = debounce(() => {
   const hiddenCount = analyses.length - visible.length;
   mapView.renderCells(visible);
   renderStormList(visible, { onSelect: selectStorm, hiddenCount });
-  renderAiPanel(visible, environment, alerts, user, { onSelect: selectStorm, hiddenCount });
+  renderAiPanel(visible, environment, alerts, user, {
+    onSelect: selectStorm, hiddenCount, outlook: sources.getState().outlook,
+  });
   updateTicker(user);
   updateGpsChip(user);
   // Alerts always consider every storm — display filters never mute safety.
@@ -242,8 +251,80 @@ function updateAnimBar({ index, total, offsetMin, isLive }) {
   scrub.value = String(index);
   time.textContent = isLive ? 'LIVE' : `-${offsetMin} min`;
   time.className = `anim-time ${isLive ? 'live' : ''}`;
+  // Time-matched playback: storm markers slide back to where they were.
+  mapView?.offsetCells(isLive ? 0 : offsetMin);
 }
 
+/** Dim red night theme (Settings → Radar → Night mode). */
+function applyTheme() {
+  document.body.classList.toggle('night', !!settings.nightMode);
+}
+
+/**
+ * Route check: geocode the destination (Nominatim), fetch a driving route
+ * (OSRM public server), draw it, and report which tracked storms are near
+ * the path now or within their projected hour of movement.
+ */
+async function checkRoute(dest) {
+  if (dest === null) {
+    route = null;
+    mapView.clearRoute();
+    showToast('Route cleared.');
+    return;
+  }
+  showToast(`Looking up “${dest}”…`, { ttlMs: 4000 });
+  try {
+    const found = await getJSON(
+      `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(dest)}`);
+    if (!found?.length) {
+      showToast(`Couldn't find “${dest}” — try a city + state.`, { level: 'warn' });
+      return;
+    }
+    const to = { lat: Number(found[0].lat), lon: Number(found[0].lon), name: found[0].display_name.split(',')[0] };
+    const from = geo.getLocation()
+      || { lat: mapView.map.getCenter().lat, lon: mapView.map.getCenter().lng };
+
+    const osrm = await getJSON(
+      `https://router.project-osrm.org/route/v1/driving/${from.lon},${from.lat};${to.lon},${to.lat}?overview=full&geometries=geojson`);
+    const line = osrm?.routes?.[0]?.geometry?.coordinates;
+    if (!line?.length) {
+      showToast('No drivable route found between those points.', { level: 'warn' });
+      return;
+    }
+    const coords = line.map(([lon, lat]) => [lat, lon]);
+    route = { name: to.name, coords };
+    mapView.setRoute(coords);
+
+    // Which storms come within 25 km of the path (now or projected)?
+    const sampled = coords.filter((_, i) => i % Math.max(1, Math.floor(coords.length / 80)) === 0);
+    const hits = [];
+    for (const a of analyses) {
+      const positions = [[a.cell.lat, a.cell.lon]];
+      if (a.cell.moveDirDeg != null && a.cell.moveSpeedKts > 3) {
+        for (const min of [30, 60]) {
+          const distKm = (a.cell.moveSpeedKts * 1.852 * min) / 60;
+          positions.push(destinationPoint(a.cell.lat, a.cell.lon, a.cell.moveDirDeg, distKm));
+        }
+      }
+      const minD = Math.min(...positions.flatMap(([plat, plon]) =>
+        sampled.map(([rlat, rlon]) => haversineKm(plat, plon, rlat, rlon))));
+      if (minD < 25) hits.push({ a, minD });
+    }
+    hits.sort((x, y) => y.a.severeScore - x.a.severeScore);
+    if (!hits.length) {
+      showToast(`Route to ${to.name} drawn — no tracked storms within 25 km of your path right now. Conditions change; recheck as you go.`, { ttlMs: 12000 });
+    } else {
+      const worst = hits[0];
+      showToast(
+        `⚠️ Route to ${to.name}: ${hits.length} storm${hits.length === 1 ? '' : 's'} near your path` +
+        ` — worst is a ${worst.a.type.label} (score ${worst.a.severeScore}/100). Tap its circle on the map for details.`,
+        { level: worst.a.severeScore >= 61 ? 'danger' : 'warn', ttlMs: 14000 });
+    }
+  } catch (err) {
+    console.warn('[route] check failed', err);
+    showToast('Route check failed — the free routing service may be busy. Try again shortly.', { level: 'warn' });
+  }
+}
 /* ---------------- Panels / tabs / settings ---------------- */
 
 function wireChrome() {
@@ -281,16 +362,26 @@ function wireChrome() {
         const name = `Spot ${settings.favorites.length + 1} (${c.lat.toFixed(1)}, ${c.lng.toFixed(1)})`;
         settings.favorites.push({ name, lat: c.lat, lon: c.lng });
         setSetting('favorites', settings.favorites);
-        showToast(`Saved ${name} to favorites.`);
+        showToast(`Saved ${name} to favorites. The alert engine now watches it too.`);
         rerenderSettings();
         return;
       }
+      if (path.startsWith('favorites.goto.')) {
+        const fav = settings.favorites[Number(path.split('.')[2])];
+        if (fav) {
+          showPanel(null);
+          mapView.map.flyTo([fav.lat, fav.lon], Math.max(mapView.map.getZoom(), 8), { duration: 0.8 });
+        }
+        return;
+      }
+      if (path === 'nightMode') applyTheme();
       if (path.startsWith('radar') || path === 'colorTable') radar.applyStyle();
       if (path === 'refreshIntervalSec' || path === 'animFps') radar.rebuild();
       if (['units', 'monitorRadiusKm', 'aiSensitivity', 'showTechnical',
         'minCellScore', 'onlyNearby'].includes(path)) reanalyze();
     },
     onRequestNotifications: requestNotificationPermission,
+    onRouteCheck: (dest) => { showPanel(null); checkRoute(dest); },
   });
 }
 

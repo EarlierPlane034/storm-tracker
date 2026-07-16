@@ -127,6 +127,52 @@ export class MapView {
     }, 8000);
   }
 
+  /**
+   * Time-matched loop playback: slide every storm marker back along its
+   * (reversed) motion vector to where it was `offsetMin` minutes ago, so
+   * markers track the radar history frame being shown.
+   */
+  offsetCells(offsetMin) {
+    for (const { marker, cell } of this.cellMarkers || []) {
+      if (!offsetMin || cell.moveDirDeg == null || !cell.moveSpeedKts) {
+        marker.setLatLng([cell.lat, cell.lon]);
+        continue;
+      }
+      const distKm = (cell.moveSpeedKts * 1.852 * offsetMin) / 60;
+      marker.setLatLng(
+        destinationPoint(cell.lat, cell.lon, (cell.moveDirDeg + 180) % 360, distKm));
+    }
+  }
+
+  /** Ghost marker used by the storm-history scrubber in the detail sheet. */
+  setGhost(lat, lon) {
+    if (!this._ghost) {
+      this._ghost = L.circleMarker([lat, lon], {
+        radius: 12, color: '#e5eaf0', weight: 2, dashArray: '4 4',
+        fillColor: '#e5eaf0', fillOpacity: 0.15, interactive: false,
+      }).addTo(this.map);
+    } else {
+      this._ghost.setLatLng([lat, lon]);
+    }
+  }
+
+  clearGhost() {
+    if (this._ghost) { this.map.removeLayer(this._ghost); this._ghost = null; }
+  }
+
+  /** Draw (or replace) the checked travel route. */
+  setRoute(latlngs) {
+    this.clearRoute();
+    this._route = L.polyline(latlngs, {
+      color: '#38bdf8', weight: 4, opacity: 0.75, interactive: false,
+    }).addTo(this.map);
+    this.map.fitBounds(this._route.getBounds(), { padding: [40, 40] });
+  }
+
+  clearRoute() {
+    if (this._route) { this.map.removeLayer(this._route); this._route = null; }
+  }
+
   renderAlerts(alerts) {
     this.groups.warnings.clearLayers();
     this.groups.watches.clearLayers();
@@ -211,6 +257,7 @@ export class MapView {
   renderCells(analyses) {
     this.groups.cells.clearLayers();
     this.groups.stormTracks.clearLayers();
+    this.cellMarkers = []; // kept for time-matched loop playback
 
     // Cap DOM markers on very active days; analyses arrive sorted most
     // dangerous first, so the cap only ever drops the weakest cells.
@@ -232,6 +279,7 @@ export class MapView {
       });
       marker.on('click', () => this.onCellTap(a));
       this.groups.cells.addLayer(marker);
+      this.cellMarkers.push({ marker, cell: c });
 
       // Projected track: 15/30/45/60-minute positions along storm motion.
       if (c.moveDirDeg != null && c.moveSpeedKts > 3) {

@@ -13,9 +13,19 @@
  * de-duplicated so the same warning doesn't re-fire every refresh.
  */
 import { settings } from '../storage.js';
-import { fmtDistance } from '../utils.js';
+import { fmtDistance, haversineKm } from '../utils.js';
 import { showToast } from '../ui/toasts.js';
 import { distToAlert } from '../ui/alertsPanel.js';
+
+/** Places the engine watches: the user's GPS position + saved favorites. */
+export function watchedPlaces(user) {
+  const places = [];
+  if (user) places.push({ name: 'you', lat: user.lat, lon: user.lon, isUser: true });
+  for (const f of settings.favorites || []) {
+    if (f.lat != null) places.push({ name: f.name, lat: f.lat, lon: f.lon, isUser: false });
+  }
+  return places;
+}
 
 const fired = new Map();           // dedupe key -> timestamp
 const lastTorBand = new Map();     // cellId -> tornado band label
@@ -59,39 +69,59 @@ export async function requestNotificationPermission() {
   return false;
 }
 
-/** Evaluate NWS alerts relative to the user. */
+/** Evaluate NWS alerts against every watched place (GPS + favorites). */
 export function evaluateAlerts(alerts, user) {
-  if (!user) return;
   const en = settings.alertsEnabled;
-  for (const a of alerts) {
-    const d = distToAlert(a, user);
-    const inIt = d === 0;
-    const near = d < 60;
-    if (!inIt && !near) continue;
+  for (const place of watchedPlaces(user)) {
+    for (const a of alerts) {
+      const d = distToAlert(a, place);
+      const inIt = d === 0;
+      const near = d < 60;
+      if (!inIt && !near) continue;
 
-    const where = inIt ? 'at your location' : `${fmtDistance(d, settings.units)} from you`;
-    if (a.kind === 'tor-warning' && en.tornadoWarning) {
-      once(`alert:${a.id}`, () => deliver(
-        a.isEmergency ? '🚨 TORNADO EMERGENCY' : '🌪 Tornado Warning',
-        `${a.areaDesc} — ${where}. Take shelter guidance from NWS immediately.`, 'danger'));
-    } else if (a.kind === 'svr-warning' && en.severeWarning) {
-      once(`alert:${a.id}`, () => deliver('⛈ Severe Thunderstorm Warning', `${a.areaDesc} — ${where}.`, inIt ? 'danger' : 'warn'));
-    } else if (a.kind === 'ffw-warning' && en.flashFloodWarning) {
-      once(`alert:${a.id}`, () => deliver('💧 Flash Flood Warning', `${a.areaDesc} — ${where}.`, inIt ? 'danger' : 'warn'));
-    } else if (a.kind === 'tor-watch' && en.tornadoWatch && inIt) {
-      once(`alert:${a.id}`, () => deliver('Tornado Watch', `A tornado watch includes your location (${a.areaDesc}).`, 'warn'));
-    } else if (a.kind === 'svr-watch' && en.severeWatch && inIt) {
-      once(`alert:${a.id}`, () => deliver('Severe Thunderstorm Watch', `A severe watch includes your location.`, 'warn'));
+      const who = place.isUser ? 'you' : `“${place.name}”`;
+      const where = inIt
+        ? (place.isUser ? 'at your location' : `at ${who}`)
+        : `${fmtDistance(d, settings.units)} from ${who}`;
+      const key = `alert:${a.id}:${place.name}`;
+      if (a.kind === 'tor-warning' && en.tornadoWarning) {
+        once(key, () => deliver(
+          a.isEmergency ? '🚨 TORNADO EMERGENCY' : '🌪 Tornado Warning',
+          `${a.areaDesc} — ${where}. Take shelter guidance from NWS immediately.`, 'danger'));
+      } else if (a.kind === 'svr-warning' && en.severeWarning) {
+        once(key, () => deliver('⛈ Severe Thunderstorm Warning', `${a.areaDesc} — ${where}.`, inIt ? 'danger' : 'warn'));
+      } else if (a.kind === 'ffw-warning' && en.flashFloodWarning) {
+        once(key, () => deliver('💧 Flash Flood Warning', `${a.areaDesc} — ${where}.`, inIt ? 'danger' : 'warn'));
+      } else if (a.kind === 'tor-watch' && en.tornadoWatch && inIt) {
+        once(key, () => deliver('Tornado Watch', `A tornado watch includes ${place.isUser ? 'your location' : who} (${a.areaDesc}).`, 'warn'));
+      } else if (a.kind === 'svr-watch' && en.severeWatch && inIt) {
+        once(key, () => deliver('Severe Thunderstorm Watch', `A severe watch includes ${place.isUser ? 'your location' : who}.`, 'warn'));
+      }
     }
   }
 }
 
-/** Evaluate AI storm analyses relative to the user. */
+/** Evaluate AI storm analyses relative to the user (and favorites). */
 export function evaluateStorms(analyses, user) {
-  if (!user) return;
   const en = settings.alertsEnabled;
   const radius = settings.monitorRadiusKm;
 
+  // Favorites get the high-signal events only (rotation near the place).
+  for (const place of watchedPlaces(user).filter((p) => !p.isUser)) {
+    if (!en.rotationDetected) break;
+    for (const a of analyses) {
+      const c = a.cell;
+      if (!c.tvs && c.meso < 3) continue;
+      const d = haversineKm(place.lat, place.lon, c.lat, c.lon);
+      if (d > radius) continue;
+      once(`rot:${c.id}:fav:${place.name}`, () => deliver(
+        c.tvs ? '🌪 Rotation near a saved place' : 'Rotation near a saved place',
+        `${a.type.label} ${fmtDistance(d, settings.units)} from “${place.name}” is showing ${c.tvs ? 'a TVS' : `a rank-${c.meso} mesocyclone`}. Unofficial estimate.`,
+        'danger'));
+    }
+  }
+
+  if (!user) return;
   for (const a of analyses) {
     if (!a.userRel || a.userRel.distKm > radius) continue;
     const c = a.cell;

@@ -8,6 +8,7 @@ import { getHistory } from '../analysis/trends.js';
 import { stormSummary, tornadoStatement, changeExplanation, technicalReadout } from '../analysis/narrative.js';
 import { attachTrendInteraction, SERIES_COLORS } from './trendChart.js';
 import { getState } from '../api/sources.js';
+import { showToast } from './toasts.js';
 
 export const scoreClass = (s) =>
   s >= 81 ? 'score-extreme' : s >= 61 ? 'score-high' : s >= 41 ? 'score-elev' : s >= 21 ? 'score-low' : 'score-verylow';
@@ -76,23 +77,33 @@ export function renderStormList(analyses, { onSelect, hiddenCount = 0 }) {
   }
 }
 
+/** Hooks the app wires up once (ghost marker on the map, etc.). */
+let sheetHooks = {};
+export function configureStormSheet(hooks) {
+  sheetHooks = hooks || {};
+}
+
 /** Full-detail bottom sheet for one storm. */
 export function openStormSheet(a) {
   const sheet = document.getElementById('storm-sheet');
   const body = document.getElementById('storm-sheet-body');
   body.textContent = '';
   sheet.hidden = false;
+  sheetHooks.ghost?.(null);
 
   const c = a.cell;
   const env = getState().environment;
 
-  // Header row.
+  // Header row (with share).
   body.appendChild(el('div', { class: 'storm-card-head' }, [
     el('div', {}, [
       el('div', { class: 'storm-id', style: 'font-size:16px', text: c.id }),
       el('div', { class: 'storm-meta', text: `${a.type.label} · scanned ${c.valid ? fmtRelTime(c.valid) : 'now'} · confidence ${a.confidence}` }),
     ]),
-    el('span', { class: `score-pill ${scoreClass(a.severeScore)}`, text: `${a.severeScore}` }),
+    el('div', { style: 'display:flex;align-items:center;gap:8px' }, [
+      el('button', { class: 'icon-btn', text: '📤', 'aria-label': 'Share storm', onclick: () => shareStorm(a) }),
+      el('span', { class: `score-pill ${scoreClass(a.severeScore)}`, text: `${a.severeScore}` }),
+    ]),
   ]));
   body.appendChild(el('div', { class: 'muted', style: 'margin:4px 0 8px', text: a.type.desc }));
 
@@ -105,6 +116,33 @@ export function openStormSheet(a) {
 
   // Tornado meter.
   body.appendChild(buildTornadoMeter(a));
+
+  // Score breakdown: which hazards are driving the headline number.
+  body.appendChild(el('h4', { class: 'trend-title', style: 'margin-top:10px', text: `Why ${a.severeScore}/100 — score breakdown` }));
+  const breakdown = el('div', { class: 'breakdown' });
+  const bars = [
+    ['Rotation', a.scores.rotation, SERIES_COLORS.rotation],
+    ['Hail', a.scores.hail, SERIES_COLORS.hail],
+    ['Wind', a.scores.wind, SERIES_COLORS.wind],
+    ['Flooding', a.scores.flood, SERIES_COLORS.rain],
+    ['Lightning', a.scores.lightning, SERIES_COLORS.lightning],
+    ['Organization', a.scores.organization, SERIES_COLORS.organization],
+  ];
+  for (const [label, val, color] of bars) {
+    breakdown.appendChild(el('div', { class: 'break-row' }, [
+      el('span', { class: 'break-label', text: label }),
+      el('div', { class: 'break-track' }, [
+        el('div', { class: 'break-fill', style: `width:${Math.round(val)}%;background:${color}` }),
+      ]),
+      el('span', { class: 'break-val', text: String(Math.round(val)) }),
+    ]));
+  }
+  const tc = a.tornado.components;
+  breakdown.appendChild(el('div', {
+    class: 'muted', style: 'font-size:11px;margin-top:4px',
+    text: `Tornado score ingredients — radar rotation ${tc.radar}/45 · environment ${tc.environment}/35 · trend ${tc.trend}/10 · official context ${tc.context}/10`,
+  }));
+  body.appendChild(breakdown);
 
   // Stat grid.
   const stats = el('div', { class: 'stat-grid' });
@@ -154,6 +192,27 @@ export function openStormSheet(a) {
     body.appendChild(el('div', { class: 'muted', text: 'Trend charts appear after this storm has been observed for a few scans.' }));
   }
 
+  // Storm history scrubber: replay this storm's own past on the map.
+  if (hist.length >= 3) {
+    body.appendChild(el('h4', { class: 'trend-title', style: 'margin-top:10px', text: 'Replay this storm' }));
+    const readout = el('div', { class: 'muted', style: 'font-family:var(--mono);font-size:11px' });
+    const scrub = el('input', {
+      type: 'range', min: '0', max: String(hist.length - 1),
+      value: String(hist.length - 1), style: 'width:100%;accent-color:#38bdf8',
+      oninput: (e) => {
+        const s = hist[Number(e.target.value)];
+        if (!s) return;
+        const when = new Date(s.t).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+        readout.textContent = `${when} — ${s.maxDbz ?? '—'} dBZ · VIL ${s.vil ?? '—'} · meso ${s.meso || 'none'}${s.tvs ? ' · TVS' : ''}`;
+        if (s.lat != null) sheetHooks.ghost?.([s.lat, s.lon]);
+      },
+    });
+    scrub.dispatchEvent(new Event('input'));
+    body.appendChild(scrub);
+    body.appendChild(readout);
+    body.appendChild(el('div', { class: 'muted', style: 'font-size:10.5px', text: 'Drag to see where the storm was and how strong it looked — a white dashed circle marks its past position on the map.' }));
+  }
+
   // Technical readout (optional).
   if (settings.showTechnical) {
     body.appendChild(el('h4', { class: 'trend-title', style: 'margin-top:10px', text: 'Technical readout' }));
@@ -192,15 +251,34 @@ function motionText(c) {
   return `${compassDir(c.moveDirDeg)} @ ${fmtSpeed(c.moveSpeedKts, settings.units)}`;
 }
 
+/** Share a storm summary via the system share sheet (clipboard fallback). */
+async function shareStorm(a) {
+  const c = a.cell;
+  const text =
+    `⛈ ${a.type.label} (${a.cell.id}) — StormLens severe score ${a.severeScore}/100. ` +
+    `Tornado chance: ${a.tornado.label} (${a.tornado.pct}). ` +
+    `Moving ${c.moveDirDeg != null ? compassDir(c.moveDirDeg) : '?'} at ${c.moveSpeedKts != null ? fmtSpeed(c.moveSpeedKts, settings.units) : '?'}. ` +
+    `Unofficial AI estimate — follow NWS warnings. ${location.origin}${location.pathname}`;
+  try {
+    if (navigator.share) {
+      await navigator.share({ title: 'StormLens storm report', text });
+      return;
+    }
+    await navigator.clipboard.writeText(text);
+    showToast('Storm summary copied to the clipboard.');
+  } catch { /* user cancelled the share sheet */ }
+}
+
 /** Wire up sheet dismissal once. */
 export function initStormSheet() {
   const sheet = document.getElementById('storm-sheet');
-  sheet.querySelector('.sheet-grab').addEventListener('click', () => { sheet.hidden = true; });
+  const close = () => { sheet.hidden = true; sheetHooks.ghost?.(null); };
+  sheet.querySelector('.sheet-grab').addEventListener('click', close);
   let startY = null;
   sheet.addEventListener('touchstart', (e) => { startY = e.touches[0].clientY; }, { passive: true });
   sheet.addEventListener('touchmove', (e) => {
     if (startY != null && e.touches[0].clientY - startY > 90 && sheet.querySelector('.sheet-body').scrollTop === 0) {
-      sheet.hidden = true;
+      close();
       startY = null;
     }
   }, { passive: true });

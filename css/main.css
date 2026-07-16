@@ -450,6 +450,37 @@ html, body {
   100% { transform: scale(1.7); opacity: 0; }
 }
 
+/* ---------- Score breakdown bars ---------- */
+.breakdown { margin: 6px 0 10px; }
+.break-row { display: flex; align-items: center; gap: 8px; margin-bottom: 5px; }
+.break-label { flex: 0 0 82px; font-size: 11px; color: var(--text-dim); }
+.break-track { flex: 1; height: 8px; border-radius: 4px; background: var(--border); overflow: hidden; }
+.break-fill { height: 100%; border-radius: 4px; }
+.break-val { flex: 0 0 26px; font-family: var(--mono); font-size: 11px; text-align: right; }
+
+/* ---------- Night mode (dim red, preserves night vision) ---------- */
+body.night {
+  --bg: #0c0203;
+  --bg-raised: #1a0708;
+  --bg-overlay: rgba(14, 2, 3, 0.92);
+  --border: #3a1215;
+  --text: #ff9d8f;
+  --text-dim: #a3564c;
+  --accent: #ff6b57;
+  --accent-dim: #7a2318;
+  --ok: #c96f3f;
+  --warn: #e08a4a;
+}
+/* Cheap red dimmer over the map — a single composited layer, no filters. */
+body.night .map-wrap::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: rgba(90, 5, 5, 0.32);
+  pointer-events: none;
+  z-index: 950;
+}
+
 /* landscape: tighten chrome */
 @media (orientation: landscape) and (max-height: 500px) {
   .tab { padding: 8px 2px; }
