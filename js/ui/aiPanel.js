@@ -19,15 +19,61 @@ const SPC_NAMES = {
   MDT: 'Moderate (level 4 of 5)', HIGH: 'High (level 5 of 5)',
 };
 
-export function renderAiPanel(analyses, env, alerts, user, { onSelect, hiddenCount = 0, outlook = [] }) {
+export function renderAiPanel(analyses, env, alerts, user, {
+  onSelect, hiddenCount = 0, outlook = [], week = [], outlookDay2 = [], outlookDay3 = [], onOpenChat,
+}) {
   const host = document.getElementById('ai-analysis');
   host.textContent = '';
+
+  // ---- Ask-the-AI entry point -------------------------------------------------
+  if (onOpenChat) {
+    host.appendChild(el('button', {
+      class: 'chat-open-btn',
+      html: '💬 <strong>Ask the AI</strong> — “which storm could produce a tornado?”, “when will it hit?”, “what about this week?”',
+      onclick: onOpenChat,
+    }));
+  }
 
   // ---- Today's outlook briefing ---------------------------------------------
   const briefing = el('div', { class: 'card ai-block' });
   briefing.appendChild(el('h4', { text: "Today's outlook" }));
   briefing.appendChild(el('p', { text: buildBriefing(outlook, env, user) }));
   host.appendChild(briefing);
+
+  // ---- Week ahead ---------------------------------------------------------------
+  if (week.length) {
+    const card = el('div', { class: 'card ai-block' });
+    card.appendChild(el('h4', { text: 'Week ahead (storm potential at your location)' }));
+    const at = user || getFocusPoint();
+    for (const [i, d] of week.entries()) {
+      const dayName = i === 0 ? 'Today'
+        : new Date(`${d.date}T12:00`).toLocaleDateString([], { weekday: 'short', month: 'numeric', day: 'numeric' });
+      // Official SPC categories exist for days 2-3; append when available.
+      let spcNote = '';
+      if (at) {
+        const feats = i === 1 ? outlookDay2 : i === 2 ? outlookDay3 : null;
+        if (feats) {
+          const cat = highestSpcCategory(feats, at);
+          if (cat) spcNote = ` · SPC: ${cat}`;
+        }
+      }
+      const colors = ['#64748b', '#34d399', '#fbbf24', '#fb923c'];
+      card.appendChild(el('div', { class: 'week-row' }, [
+        el('span', { class: 'week-day', text: dayName }),
+        el('div', { class: 'week-track' }, [
+          el('div', { class: 'week-fill', style: `width:${25 + d.level * 25}%;background:${colors[d.level]}` }),
+        ]),
+        el('span', { class: 'week-label', text: `${d.label}${spcNote}` }),
+      ]));
+    }
+    const best = [...week].sort((a, b) => b.level - a.level || b.capeMax - a.capeMax)[0];
+    if (best.level >= 1) {
+      card.appendChild(el('p', { class: 'muted', style: 'margin-top:6px; font-size:11.5px', text: `Most interesting day: ${new Date(`${best.date}T12:00`).toLocaleDateString([], { weekday: 'long' })} — ${best.note} CAPE to ~${best.capeMax} J/kg, deep shear to ~${best.shearMaxKts} kt, precip chance ${best.precipProbMax}%. Outlooks beyond 2–3 days shift; recheck daily.` }));
+    } else {
+      card.appendChild(el('p', { class: 'muted', style: 'margin-top:6px; font-size:11.5px', text: 'A quiet stretch — no day shows meaningful storm fuel at your location.' }));
+    }
+    host.appendChild(card);
+  }
 
   // ---- Situation overview -------------------------------------------------
   const overview = el('div', { class: 'card ai-block' });
@@ -86,6 +132,18 @@ export function renderAiPanel(analyses, env, alerts, user, { onSelect, hiddenCou
     }));
   }
   host.appendChild(el('div', { class: 'ai-disclaimer', text: CONFIG.disclaimer }));
+}
+
+/** Highest SPC category label whose polygon contains the point. */
+function highestSpcCategory(features, at) {
+  let best = -1;
+  for (const f of features) {
+    const rank = SPC_RANK.indexOf(f.properties?.LABEL);
+    if (rank > best && f.geometry && pointInGeometry(at.lat, at.lon ?? at.lng, f.geometry)) {
+      best = rank;
+    }
+  }
+  return best >= 0 ? SPC_NAMES[SPC_RANK[best]] : null;
 }
 
 /** Morning-briefing style narrative from the SPC outlook + environment. */

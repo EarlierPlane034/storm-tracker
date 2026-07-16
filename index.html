@@ -64,6 +64,9 @@
 
       <!-- GPS proximity chip -->
       <div class="gps-chip" id="gps-chip" hidden></div>
+
+      <!-- Chase mode HUD (Settings → Chase mode) -->
+      <div class="chase-hud" id="chase-hud" hidden></div>
     </main>
 
     <!-- Permanent disclaimer (shown on first launch; inline disclaimers
@@ -93,7 +96,13 @@
     </section>
 
     <section class="panel" id="panel-ai" hidden>
-      <header class="panel-head"><h2>AI Meteorologist</h2><button class="icon-btn panel-close">&times;</button></header>
+      <header class="panel-head">
+        <h2>AI Meteorologist</h2>
+        <div>
+          <button class="icon-btn" id="btn-chat" aria-label="Ask the AI">💬</button>
+          <button class="icon-btn panel-close">&times;</button>
+        </div>
+      </header>
       <div class="panel-body" id="ai-analysis"></div>
     </section>
 
@@ -111,6 +120,20 @@
     <section class="sheet" id="storm-sheet" hidden>
       <div class="sheet-grab"></div>
       <div class="sheet-body" id="storm-sheet-body"></div>
+    </section>
+
+    <!-- Ask-the-AI chat sheet -->
+    <section class="sheet" id="chat-sheet" hidden>
+      <div class="sheet-grab"></div>
+      <div class="chat-wrap">
+        <div class="chat-log" id="chat-log"></div>
+        <div class="chat-chips" id="chat-chips"></div>
+        <div class="chat-inputrow">
+          <input type="text" id="chat-input" placeholder="Ask about the storms…" autocomplete="off">
+          <button class="product-btn" id="chat-send">Ask</button>
+        </div>
+        <div class="muted" style="font-size:9.5px;text-align:center;padding:2px 8px">On-device assistant using live analysis data. Unofficial — follow NWS warnings.</div>
+      </div>
     </section>
 
     <!-- Toast / in-app alert banners -->

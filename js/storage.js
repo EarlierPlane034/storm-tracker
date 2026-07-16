@@ -13,6 +13,7 @@ export const DEFAULT_SETTINGS = {
   radarOpacity: CONFIG.radar.defaultOpacity,
   radarSmoothing: true,         // CSS-level smoothing of radar tiles
   nightMode: false,             // dim red theme for night driving
+  chaseMode: false,             // chaser HUD + screen wake lock
   colorTable: 'classic',        // 'classic' | 'enhanced' | 'grayscale'
   monitorRadiusKm: CONFIG.analysis.monitorRadiusKm,
   minCellScore: 0,              // hide storms scoring below this (map + lists)

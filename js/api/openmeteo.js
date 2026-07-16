@@ -103,6 +103,66 @@ export async function fetchEnvironment(lat, lon) {
   };
 }
 
+/**
+ * 7-day storm-potential outlook for a point: per-day max CAPE, deep-shear
+ * proxy and precipitation probability, graded into a chase/threat category.
+ */
+export async function fetchWeekOutlook(lat, lon) {
+  const params = new URLSearchParams({
+    latitude: lat.toFixed(3),
+    longitude: lon.toFixed(3),
+    hourly: [
+      'cape', 'precipitation_probability',
+      'wind_speed_10m', 'wind_direction_10m',
+      'wind_speed_500hPa', 'wind_direction_500hPa',
+    ].join(','),
+    wind_speed_unit: 'kn',
+    timezone: 'auto',
+    forecast_days: '7',
+    models: 'best_match',
+  });
+  const data = await getJSON(
+    `${CONFIG.endpoints.openMeteo}/forecast?${params}`,
+    { cacheMs: 3 * 3600_000 },
+  );
+  const h = data.hourly;
+  if (!h?.time?.length) return [];
+
+  const byDay = new Map(); // 'YYYY-MM-DD' -> {capeMax, shearMax, precipMax}
+  for (let i = 0; i < h.time.length; i++) {
+    const day = h.time[i].slice(0, 10);
+    if (!byDay.has(day)) byDay.set(day, { capeMax: 0, shearMax: 0, precipMax: 0 });
+    const d = byDay.get(day);
+    d.capeMax = Math.max(d.capeMax, h.cape?.[i] ?? 0);
+    d.precipMax = Math.max(d.precipMax, h.precipitation_probability?.[i] ?? 0);
+    const sfc = windVector(h.wind_speed_10m?.[i], h.wind_direction_10m?.[i]);
+    const w500 = windVector(h.wind_speed_500hPa?.[i], h.wind_direction_500hPa?.[i]);
+    if (sfc && w500) d.shearMax = Math.max(d.shearMax, Math.hypot(w500.u - sfc.u, w500.v - sfc.v));
+  }
+
+  return [...byDay.entries()].slice(0, 7).map(([date, d]) => ({
+    date,
+    capeMax: Math.round(d.capeMax),
+    shearMaxKts: Math.round(d.shearMax),
+    precipProbMax: Math.round(d.precipMax),
+    ...gradeDay(d),
+  }));
+}
+
+/** CAPE × shear × precip chance -> plain-language storm potential. */
+function gradeDay({ capeMax, shearMax, precipMax }) {
+  if (precipMax < 25 || capeMax < 250) {
+    return { level: 0, label: 'Quiet', note: 'Little storm fuel expected.' };
+  }
+  if (capeMax >= 2000 && shearMax >= 40) {
+    return { level: 3, label: 'High', note: 'Strong instability + strong shear: supercells possible if storms fire.' };
+  }
+  if (capeMax >= 1000 && shearMax >= 25) {
+    return { level: 2, label: 'Moderate', note: 'Enough fuel and organization for severe storms.' };
+  }
+  return { level: 1, label: 'Low', note: 'Garden-variety storms possible.' };
+}
+
 /** Convert speed (kt) + meteorological direction (from) to u/v components (kt). */
 function windVector(speedKts, dirDeg) {
   if (speedKts == null || dirDeg == null) return null;
