@@ -11,7 +11,7 @@
  *    cached tiles are served only when offline.
  * ========================================================================== */
 
-const VERSION = 'stormlens-v4';
+const VERSION = 'stormlens-v5';
 const SHELL_CACHE = `${VERSION}-shell`;
 const DATA_CACHE = `${VERSION}-data`;
 const TILE_CACHE = `${VERSION}-tiles`;
@@ -47,6 +47,7 @@ const SHELL_ASSETS = [
   './js/ui/trendChart.js',
   './js/ui/toasts.js',
   './js/alerts/alertEngine.js',
+  './js/alerts/pushClient.js',
   './icons/icon-192.png',
   './icons/icon-512.png',
   './vendor/leaflet/leaflet.css',
@@ -156,6 +157,22 @@ self.addEventListener('message', (event) => {
       tag: msg.tag || 'stormlens',
     });
   }
+});
+
+/* Background Web Push from the user's own Cloudflare worker
+ * (see cloudflare/worker.js + docs/PUSH_SETUP.md). Fires even when the
+ * app is fully closed, on iOS 16.4+ Home Screen installs. */
+self.addEventListener('push', (event) => {
+  let payload = { title: 'StormLens weather alert', body: '' };
+  try { payload = event.data.json(); } catch { /* keep defaults */ }
+  event.waitUntil(
+    self.registration.showNotification(payload.title, {
+      body: payload.body,
+      icon: './icons/icon-192.png',
+      badge: './icons/icon-192.png',
+      tag: payload.tag || 'stormlens-push',
+    })
+  );
 });
 
 self.addEventListener('notificationclick', (event) => {

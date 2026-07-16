@@ -19,6 +19,7 @@ import { renderLayers } from './ui/layersPanel.js';
 import { showToast } from './ui/toasts.js';
 import * as geo from './location.js';
 import { evaluateAlerts, evaluateStorms, requestNotificationPermission } from './alerts/alertEngine.js';
+import { connectPush, disconnectPush, syncPush } from './alerts/pushClient.js';
 import { fetchRadarSites } from './api/iem.js';
 import { getJSON } from './api/client.js';
 import { haversineKm, destinationPoint } from './utils.js';
@@ -95,6 +96,7 @@ async function main() {
     }
     mapView.setUserLocation(loc.lat, loc.lon, loc.accuracyM);
     sources.setFocusPoint(loc.lat, loc.lon);
+    syncPush(); // keep the push worker's copy of our location fresh
     reanalyze();
   });
   document.getElementById('btn-locate').addEventListener('click', () => {
@@ -379,9 +381,13 @@ function wireChrome() {
       if (path === 'refreshIntervalSec' || path === 'animFps') radar.rebuild();
       if (['units', 'monitorRadiusKm', 'aiSensitivity', 'showTechnical',
         'minCellScore', 'onlyNearby'].includes(path)) reanalyze();
+      // Alert prefs / radius / favorites also live on the push worker.
+      if (path.startsWith('alertsEnabled') || path === 'monitorRadiusKm' || path === 'favorites') syncPush();
     },
     onRequestNotifications: requestNotificationPermission,
     onRouteCheck: (dest) => { showPanel(null); checkRoute(dest); },
+    onConnectPush: async (url) => { if (await connectPush(url)) rerenderSettings(); },
+    onDisconnectPush: async () => { await disconnectPush(); rerenderSettings(); },
   });
 }
 
