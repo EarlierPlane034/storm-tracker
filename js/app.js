@@ -20,6 +20,8 @@ import { showToast } from './ui/toasts.js';
 import * as geo from './location.js';
 import { evaluateAlerts, evaluateStorms, requestNotificationPermission } from './alerts/alertEngine.js';
 import { connectPush, disconnectPush, syncPush } from './alerts/pushClient.js';
+import { initChat, openChat } from './ui/chatAssistant.js';
+import { bearingDeg, compassDir, fmtSpeed } from './utils.js';
 import { fetchRadarSites } from './api/iem.js';
 import { getJSON } from './api/client.js';
 import { haversineKm, destinationPoint } from './utils.js';
@@ -61,6 +63,9 @@ async function main() {
   wireChrome();
   wireAnimBar();
   applyTheme();
+  initChat({ analysesProvider: () => analyses, onSelect: selectStorm });
+  document.getElementById('btn-chat').addEventListener('click', openChat);
+  applyChaseMode();
 
   // Recompute nearest radar site + environment focus when the map settles.
   mapView.map.on('moveend', debounce(async () => {
@@ -155,9 +160,14 @@ const reanalyze = debounce(() => {
   const hiddenCount = analyses.length - visible.length;
   mapView.renderCells(visible);
   renderStormList(visible, { onSelect: selectStorm, hiddenCount });
+  const st = sources.getState();
   renderAiPanel(visible, environment, alerts, user, {
-    onSelect: selectStorm, hiddenCount, outlook: sources.getState().outlook,
+    onSelect: selectStorm, hiddenCount,
+    outlook: st.outlook, week: st.week,
+    outlookDay2: st.outlookDay2, outlookDay3: st.outlookDay3,
+    onOpenChat: openChat,
   });
+  updateChaseHud(user);
   updateTicker(user);
   updateGpsChip(user);
   // Alerts always consider every storm — display filters never mute safety.
@@ -260,6 +270,73 @@ function updateAnimBar({ index, total, offsetMin, isLive }) {
 /** Dim red night theme (Settings → Radar → Night mode). */
 function applyTheme() {
   document.body.classList.toggle('night', !!settings.nightMode);
+}
+
+/* ---------------- Chase mode: HUD + screen wake lock ---------------- */
+
+let wakeLock = null;
+
+async function applyChaseMode() {
+  const hud = document.getElementById('chase-hud');
+  if (settings.chaseMode) {
+    updateChaseHud(geo.getLocation());
+    // Keep the screen on during a chase (released automatically when off).
+    try {
+      wakeLock = await navigator.wakeLock?.request?.('screen');
+      // Re-acquire when returning to the foreground (iOS releases it).
+      document.addEventListener('visibilitychange', reacquireWakeLock);
+    } catch { /* unsupported — HUD still works */ }
+  } else {
+    hud.hidden = true;
+    document.removeEventListener('visibilitychange', reacquireWakeLock);
+    try { await wakeLock?.release?.(); } catch { /* already gone */ }
+    wakeLock = null;
+  }
+}
+
+async function reacquireWakeLock() {
+  if (settings.chaseMode && document.visibilityState === 'visible') {
+    try { wakeLock = await navigator.wakeLock?.request?.('screen'); } catch { /* ok */ }
+  }
+}
+
+/** Target = most dangerous storm within radius; shows chase geometry. */
+function updateChaseHud(user) {
+  const hud = document.getElementById('chase-hud');
+  if (!settings.chaseMode) { hud.hidden = true; return; }
+  hud.hidden = false;
+
+  if (!user) {
+    hud.innerHTML = '<div class="hud-title">CHASE MODE</div><div class="muted">Waiting for GPS… tap ⌖ and allow location.</div>';
+    return;
+  }
+  const target = analyses.find((a) => a.userRel && a.userRel.distKm <= settings.monitorRadiusKm);
+  const mySpeed = user.speedMps != null && user.speedMps >= 0
+    ? fmtSpeed(user.speedMps * 1.94384, settings.units) : '—';
+
+  if (!target) {
+    hud.innerHTML = `<div class="hud-title">CHASE MODE</div><div class="muted">No target storms in radius · your speed ${escapeHud(mySpeed)}</div>`;
+    return;
+  }
+  const brg = bearingDeg(user.lat, user.lon, target.cell.lat, target.cell.lon);
+  const eta = target.userRel.etaMin != null ? `~${target.userRel.etaMin} min to you` : 'not tracking to you';
+  hud.innerHTML = `
+    <div class="hud-title">TARGET · ${escapeHud(target.cell.id)} · ${target.severeScore}/100</div>
+    <div class="hud-grid">
+      <span>Look <strong>${compassDir(brg)}</strong> <span class="hud-arrow" style="transform:rotate(${Math.round(brg)}deg)">➤</span></span>
+      <span>${escapeHud(fmtDistance(target.userRel.distKm, settings.units))}</span>
+      <span>${escapeHud(eta)}</span>
+      <span>You: ${escapeHud(mySpeed)}</span>
+    </div>
+    <div class="hud-note">${target.type.id.includes('supercell') || target.type.id === 'supercell'
+      ? 'Right-movers are typically safest viewed from the SE, storm at your NW — never enter the rain core, and keep a paved escape route south or east.'
+      : 'Stay out of the storm\'s path and ahead of the gust front.'} Unofficial guidance — your safety decisions are your own.</div>`;
+  hud.onclick = () => openStormSheet(target);
+}
+
+// The HUD builds its HTML from analysed data; escape anything stringy.
+function escapeHud(s) {
+  return String(s).replace(/[&<>"]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]));
 }
 
 /**
@@ -377,6 +454,7 @@ function wireChrome() {
         return;
       }
       if (path === 'nightMode') applyTheme();
+      if (path === 'chaseMode') applyChaseMode();
       if (path.startsWith('radar') || path === 'colorTable') radar.applyStyle();
       if (path === 'refreshIntervalSec' || path === 'animFps') radar.rebuild();
       if (['units', 'monitorRadiusKm', 'aiSensitivity', 'showTechnical',

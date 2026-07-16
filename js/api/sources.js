@@ -8,11 +8,12 @@ import { CONFIG } from '../config.js';
 import { settings } from '../storage.js';
 import { fetchStormCells, fetchStormReports, fetchSpcOutlook } from './iem.js';
 import { fetchSevereAlerts, fetchNearbyObservations } from './nws.js';
-import { fetchEnvironment } from './openmeteo.js';
+import { fetchEnvironment, fetchWeekOutlook } from './openmeteo.js';
 
 const listeners = new Map(); // stream -> Set<fn>
 const state = {
   cells: [], alerts: [], reports: [], outlook: [],
+  outlookDay2: [], outlookDay3: [], week: [],
   environment: null, obs: [],
   lastUpdated: {},
 };
@@ -46,6 +47,7 @@ export function setFocusPoint(lat, lon) {
   if (moved) {
     refreshEnvironment();
     refreshObservations();
+    refreshWeek();
   }
 }
 
@@ -69,8 +71,16 @@ async function refreshReports() {
 }
 
 async function refreshOutlook() {
-  try { emit('outlook', await fetchSpcOutlook()); }
+  try { emit('outlook', await fetchSpcOutlook(1)); }
   catch (err) { console.warn('[sources] outlook refresh failed', err); }
+  try { emit('outlookDay2', await fetchSpcOutlook(2)); } catch { /* optional */ }
+  try { emit('outlookDay3', await fetchSpcOutlook(3)); } catch { /* optional */ }
+}
+
+async function refreshWeek() {
+  if (!focusPoint) return;
+  try { emit('week', await fetchWeekOutlook(focusPoint.lat, focusPoint.lon)); }
+  catch (err) { console.warn('[sources] week outlook refresh failed', err); }
 }
 
 async function refreshEnvironment() {
@@ -99,6 +109,7 @@ export function start() {
   timers.push(setInterval(refreshOutlook, CONFIG.refresh.environmentMs));
   timers.push(setInterval(refreshEnvironment, CONFIG.refresh.environmentMs));
   timers.push(setInterval(refreshObservations, CONFIG.refresh.reportsMs));
+  timers.push(setInterval(refreshWeek, 3 * 3600_000));
 
   // Refresh instantly when the PWA returns to the foreground — the primary
   // "background sync" path on iOS where the SyncManager API is unavailable.

@@ -120,11 +120,11 @@ export async function fetchRadarSites() {
   return siteCache;
 }
 
-/** SPC Day-1 categorical convective outlook (GeoJSON via SPC). */
-export async function fetchSpcOutlook() {
+/** SPC categorical convective outlook (GeoJSON via SPC), day 1–3. */
+export async function fetchSpcOutlook(day = 1) {
   try {
     const data = await getJSON(
-      `${CONFIG.endpoints.spc}/day1otlk_cat.lyr.geojson`,
+      `${CONFIG.endpoints.spc}/day${day}otlk_cat.lyr.geojson`,
       { cacheMs: 900_000 },
     );
     return data.features || [];

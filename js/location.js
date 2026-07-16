@@ -28,6 +28,8 @@ export function startWatching({ onError } = {}) {
         lat: pos.coords.latitude,
         lon: pos.coords.longitude,
         accuracyM: pos.coords.accuracy,
+        speedMps: pos.coords.speed,     // null when stationary/unavailable
+        headingDeg: pos.coords.heading, // direction of travel, null if unknown
         at: Date.now(),
       };
       // Throttle: ignore jitter under ~100 m within 15 s.
