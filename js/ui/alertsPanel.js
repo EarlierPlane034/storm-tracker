@@ -35,13 +35,19 @@ export function renderAlerts(alerts, user) {
     card.appendChild(el('div', { class: 'alert-title', text: a.isEmergency ? `⚠️ ${a.event} — EMERGENCY` : a.event }));
     card.appendChild(el('div', { class: 'alert-area', text: a.areaDesc }));
 
-    const bits = [];
-    if (a.ends) bits.push(`until ${fmtTimeLocal(a.ends)}`);
+    const times = el('div', { class: 'alert-times' });
+    if (a.ends) {
+      const cd = el('span', { class: 'countdown', 'data-ends': String(a.ends.getTime()) });
+      cd.textContent = countdownText(a.ends);
+      times.appendChild(cd);
+    }
     if (user && a.geometry) {
       const d = distToAlert(a, user);
-      bits.push(d === 0 ? 'YOU ARE IN THIS ALERT' : `${fmtDistance(d, settings.units)} away`);
+      times.appendChild(el('span', {
+        text: `${a.ends ? ' · ' : ''}${d === 0 ? 'YOU ARE IN THIS ALERT' : `${fmtDistance(d, settings.units)} away`}`,
+      }));
     }
-    card.appendChild(el('div', { class: 'alert-times', text: bits.join(' · ') }));
+    card.appendChild(times);
 
     // Expandable description.
     const desc = el('div', { class: 'muted', style: 'display:none;margin-top:6px;white-space:pre-wrap', text: `${a.description}\n\n${a.instruction}`.trim() });
@@ -52,6 +58,20 @@ export function renderAlerts(alerts, user) {
     host.appendChild(card);
   }
 }
+
+function countdownText(ends) {
+  const mins = Math.round((ends.getTime() - Date.now()) / 60000);
+  if (mins <= 0) return `expired ${fmtTimeLocal(ends)}`;
+  if (mins < 90) return `until ${fmtTimeLocal(ends)} (${mins} min left)`;
+  return `until ${fmtTimeLocal(ends)}`;
+}
+
+// Live countdown refresh — one lightweight pass over rendered spans.
+setInterval(() => {
+  document.querySelectorAll('#alert-list .countdown').forEach((span) => {
+    span.textContent = countdownText(new Date(Number(span.dataset.ends)));
+  });
+}, 30_000);
 
 /** Rough distance (km) from user to alert polygon: 0 if inside, else nearest vertex. */
 export function distToAlert(alert, user) {

@@ -113,7 +113,7 @@ export class RadarController {
     this.frames = [];
 
     const isMosaic = prod.mode === 'mosaic' || (prod.mosaicFallback && !this.site);
-    const frameCount = isMosaic ? CONFIG.radar.frameCount : 5;
+    const frameCount = prod.noHistory ? 1 : isMosaic ? CONFIG.radar.frameCount : 5;
     const step = CONFIG.radar.frameStepMin;
 
     for (let i = frameCount - 1; i >= 0; i--) {
@@ -146,6 +146,18 @@ export class RadarController {
       attribution: 'NEXRAD via IEM/NOAA',
       crossOrigin: true,
     });
+    // Some optional layers (satellite, SRV) may not be served for every
+    // sector/time; tell the user once instead of failing silently.
+    if (prod.mayBeMissing) {
+      let errCount = 0;
+      f.layer.on('tileerror', () => {
+        this._warnedMissing = this._warnedMissing || {};
+        if (++errCount === 10 && !this._warnedMissing[prod.id]) {
+          this._warnedMissing[prod.id] = true;
+          this.onNotice(`${prod.name} tiles appear unavailable from the public cache right now — try again later or switch products.`);
+        }
+      });
+    }
     f.layer.addTo(this.map);
   }
 

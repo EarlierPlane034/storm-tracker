@@ -36,6 +36,21 @@ export const PRODUCTS = [
     legend: { stops: ['#00e0a0', '#00b070', '#007a4a', '#0a3d2e', '#3d0a0a', '#7a1f1f', '#c03030', '#ff5050'], min: -50, max: 50, note: 'storm motion removed' },
   },
   {
+    id: 'SVIS', label: 'SAT-V', name: 'GOES Visible Satellite',
+    mode: 'mosaic', layer: 'goes-east-vis-900913', noHistory: true,
+    unit: '', available: true, mayBeMissing: true,
+  },
+  {
+    id: 'SIR', label: 'SAT-IR', name: 'GOES Infrared Satellite',
+    mode: 'mosaic', layer: 'goes-east-ir-900913', noHistory: true,
+    unit: '', available: true, mayBeMissing: true,
+  },
+  {
+    id: 'SWV', label: 'SAT-WV', name: 'GOES Water Vapor',
+    mode: 'mosaic', layer: 'goes-east-wv-900913', noHistory: true,
+    unit: '', available: true, mayBeMissing: true,
+  },
+  {
     id: 'CC', label: 'CC', name: 'Correlation Coefficient',
     mode: 'none', available: false,
     unavailableNote: 'Dual-pol CC grids are not served by free public tile caches. StormLens instead infers debris potential from TVS + rotation + report data in each cell’s analysis.',

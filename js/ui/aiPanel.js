@@ -8,10 +8,26 @@ import { settings } from '../storage.js';
 import { CONFIG } from '../config.js';
 import { stormSummary, tornadoStatement, changeExplanation } from '../analysis/narrative.js';
 import { buildTornadoMeter, scoreClass } from './stormPanel.js';
+import { pointInGeometry } from '../analysis/stormAnalyzer.js';
+import { drawHodograph } from './trendChart.js';
+import { getFocusPoint } from '../api/sources.js';
 
-export function renderAiPanel(analyses, env, alerts, user, { onSelect, hiddenCount = 0 }) {
+const SPC_RANK = ['TSTM', 'MRGL', 'SLGT', 'ENH', 'MDT', 'HIGH'];
+const SPC_NAMES = {
+  TSTM: 'general thunderstorm', MRGL: 'Marginal (level 1 of 5)',
+  SLGT: 'Slight (level 2 of 5)', ENH: 'Enhanced (level 3 of 5)',
+  MDT: 'Moderate (level 4 of 5)', HIGH: 'High (level 5 of 5)',
+};
+
+export function renderAiPanel(analyses, env, alerts, user, { onSelect, hiddenCount = 0, outlook = [] }) {
   const host = document.getElementById('ai-analysis');
   host.textContent = '';
+
+  // ---- Today's outlook briefing ---------------------------------------------
+  const briefing = el('div', { class: 'card ai-block' });
+  briefing.appendChild(el('h4', { text: "Today's outlook" }));
+  briefing.appendChild(el('p', { text: buildBriefing(outlook, env, user) }));
+  host.appendChild(briefing);
 
   // ---- Situation overview -------------------------------------------------
   const overview = el('div', { class: 'card ai-block' });
@@ -23,6 +39,12 @@ export function renderAiPanel(analyses, env, alerts, user, { onSelect, hiddenCou
   const envCard = el('div', { class: 'card ai-block' });
   envCard.appendChild(el('h4', { text: 'Environment (near your focus point)' }));
   envCard.appendChild(el('p', { text: buildEnvDiscussion(env) }));
+  if (env?.windProfile) {
+    const canvas = el('canvas', { style: 'width:100%;height:180px;margin-top:8px' });
+    envCard.appendChild(canvas);
+    envCard.appendChild(el('div', { class: 'muted', style: 'font-size:10.5px', text: 'Hodograph: how the wind turns with height (sfc → 850 → 700 → 500 mb). A long, curving path favors rotating storms. × marks the estimated storm motion.' }));
+    requestAnimationFrame(() => drawHodograph(canvas, env));
+  }
   host.appendChild(envCard);
 
   // ---- Per-storm analyses ---------------------------------------------------
@@ -64,6 +86,43 @@ export function renderAiPanel(analyses, env, alerts, user, { onSelect, hiddenCou
     }));
   }
   host.appendChild(el('div', { class: 'ai-disclaimer', text: CONFIG.disclaimer }));
+}
+
+/** Morning-briefing style narrative from the SPC outlook + environment. */
+function buildBriefing(outlook, env, user) {
+  const at = user || getFocusPoint();
+  if (!at) return 'Set a location (⌖) or move the map to get a severe-weather briefing for that spot.';
+
+  // Highest SPC category whose polygon contains the focus point.
+  let best = -1;
+  for (const f of outlook) {
+    const label = f.properties?.LABEL;
+    const rank = SPC_RANK.indexOf(label);
+    if (rank > best && f.geometry && pointInGeometry(at.lat, at.lon ?? at.lng, f.geometry)) {
+      best = rank;
+    }
+  }
+
+  const parts = [];
+  if (best < 0) {
+    parts.push('The Storm Prediction Center has no severe weather risk area over your location today.');
+  } else if (best === 0) {
+    parts.push('The Storm Prediction Center outlook shows general (non-severe) thunderstorms possible at your location today.');
+  } else {
+    parts.push(`The Storm Prediction Center has your location in a ${SPC_NAMES[SPC_RANK[best]]} risk of severe storms today.`);
+  }
+
+  if (env) {
+    const modes = [];
+    if ((env.bulkShearKts ?? 0) >= 40 && (env.cape ?? 0) >= 1000) modes.push('supercells capable of all severe hazards');
+    else if ((env.bulkShearKts ?? 0) >= 25 && (env.cape ?? 0) >= 500) modes.push('organized storms with hail and gusty winds');
+    else if ((env.cape ?? 0) >= 500) modes.push('pulse-type storms with brief heavy rain and lightning');
+    if (modes.length) parts.push(`If storms develop, the environment supports ${modes[0]}.`);
+    if ((env.cin ?? 0) < -75) parts.push('A capping inversion is currently holding storms off — watch for it to erode.');
+    if ((env.srh ?? 0) >= 150 && (env.lclM ?? 9999) < 1200) parts.push('Low-level turning and low cloud bases mean any strong storm deserves close attention for tornado potential.');
+  }
+  parts.push('This is an automated summary of official SPC/model data — not a forecast of its own.');
+  return parts.join(' ');
 }
 
 function buildOverview(analyses, alerts, user) {

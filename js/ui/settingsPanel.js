@@ -2,7 +2,7 @@
 import { el } from '../utils.js';
 import { settings, setSetting } from '../storage.js';
 
-export function renderSettings({ onChanged, onRequestNotifications }) {
+export function renderSettings({ onChanged, onRequestNotifications, onRouteCheck }) {
   const host = document.getElementById('settings-body');
   host.textContent = '';
 
@@ -51,6 +51,7 @@ export function renderSettings({ onChanged, onRequestNotifications }) {
   selectRow('Animation speed', null, 'animFps', [[1, 'Slow (1 fps)'], [2, '2 fps'], [4, 'Normal (4 fps)'], [6, '6 fps'], [8, 'Fast (8 fps)']]);
   selectRow('Color table', null, 'colorTable', [['classic', 'Classic'], ['enhanced', 'Enhanced contrast'], ['grayscale', 'Grayscale']]);
   toggleRow('Radar smoothing', 'Softens pixel edges', 'radarSmoothing');
+  toggleRow('Night mode', 'Dim red theme for driving in the dark', 'nightMode');
 
   section('AI analyst');
   selectRow('AI sensitivity', 'How readily scores climb', 'aiSensitivity',
@@ -83,15 +84,20 @@ export function renderSettings({ onChanged, onRequestNotifications }) {
   toggleRow('Storm approaching me', null, 'alertsEnabled.approachingStorm');
 
   section('Favorite locations');
+  host.appendChild(el('div', { class: 'muted', style: 'font-size:11px;margin:0 4px 4px', text: 'Tap a favorite to fly the map there. Favorites are also watched by the alert engine — warnings and strong rotation near them will notify you.' }));
   for (const [i, fav] of settings.favorites.entries()) {
     host.appendChild(el('div', { class: 'setting-row' }, [
-      el('label', { text: `${fav.name} (${fav.lat.toFixed(2)}, ${fav.lon.toFixed(2)})` }),
+      el('label', {
+        text: `📍 ${fav.name}`,
+        style: 'cursor:pointer',
+        onclick: () => onChanged(`favorites.goto.${i}`),
+      }),
       el('button', {
         class: 'icon-btn', text: '✕',
         onclick: () => {
           settings.favorites.splice(i, 1);
           setSetting('favorites', settings.favorites);
-          renderSettings({ onChanged, onRequestNotifications });
+          renderSettings({ onChanged, onRequestNotifications, onRouteCheck });
         },
       }),
     ]));
@@ -100,6 +106,20 @@ export function renderSettings({ onChanged, onRequestNotifications }) {
     el('label', { html: 'Add current map view<span class="hint">Saves the map centre as a favorite</span>' }),
     el('button', { class: 'product-btn', text: '+ Save', onclick: () => onChanged('favorites.add') }),
   ]));
+
+  section('Route check');
+  const routeInput = el('input', {
+    type: 'text', placeholder: 'Destination (city or address)',
+    style: 'flex:1;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:8px;font-size:13px',
+  });
+  host.appendChild(el('div', { class: 'setting-row' }, [routeInput,
+    el('button', {
+      class: 'product-btn', text: 'Check',
+      onclick: () => { if (routeInput.value.trim()) onRouteCheck?.(routeInput.value.trim()); },
+    }),
+    el('button', { class: 'product-btn', text: 'Clear', onclick: () => onRouteCheck?.(null) }),
+  ]));
+  host.appendChild(el('div', { class: 'muted', style: 'font-size:11px;margin:0 4px', text: 'Draws the driving route from your location (or the map centre) and reports which tracked storms pass near it.' }));
 
   host.appendChild(el('div', {
     class: 'ai-disclaimer', style: 'margin-top:16px',

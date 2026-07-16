@@ -12,6 +12,7 @@ export const DEFAULT_SETTINGS = {
   animFps: 4,                   // radar loop frames per second
   radarOpacity: CONFIG.radar.defaultOpacity,
   radarSmoothing: true,         // CSS-level smoothing of radar tiles
+  nightMode: false,             // dim red theme for night driving
   colorTable: 'classic',        // 'classic' | 'enhanced' | 'grayscale'
   monitorRadiusKm: CONFIG.analysis.monitorRadiusKm,
   minCellScore: 0,              // hide storms scoring below this (map + lists)
