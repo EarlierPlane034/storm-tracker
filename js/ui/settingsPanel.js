@@ -2,7 +2,7 @@
 import { el } from '../utils.js';
 import { settings, setSetting } from '../storage.js';
 
-export function renderSettings({ onChanged, onRequestNotifications, onRouteCheck }) {
+export function renderSettings({ onChanged, onRequestNotifications, onRouteCheck, onConnectPush, onDisconnectPush }) {
   const host = document.getElementById('settings-body');
   host.textContent = '';
 
@@ -72,6 +72,32 @@ export function renderSettings({ onChanged, onRequestNotifications, onRouteCheck
   host.appendChild(el('div', { class: 'setting-row' }, [
     el('label', { html: 'Browser notifications<span class="hint">Requires installing to Home Screen on iOS</span>' }), notifBtn,
   ]));
+  // Background push via the user's own Cloudflare worker.
+  section('Background alerts (works when app is closed)');
+  if (settings.pushEnabled) {
+    host.appendChild(el('div', { class: 'setting-row' }, [
+      el('label', { html: `Background alerts: <strong style="color:var(--ok)">ON</strong><span class="hint">${settings.pushServerUrl}</span>` }),
+      el('button', { class: 'product-btn', text: 'Turn off', onclick: () => { onDisconnectPush?.(); } }),
+    ]));
+  } else {
+    const pushInput = el('input', {
+      type: 'text',
+      placeholder: 'your-worker.workers.dev',
+      value: settings.pushServerUrl || '',
+      style: 'flex:1;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:8px;font-size:13px',
+    });
+    host.appendChild(el('div', { class: 'setting-row' }, [pushInput,
+      el('button', {
+        class: 'product-btn', text: 'Connect',
+        onclick: () => { if (pushInput.value.trim()) onConnectPush?.(pushInput.value.trim()); },
+      }),
+    ]));
+    host.appendChild(el('div', {
+      class: 'muted', style: 'font-size:11px;margin:0 4px 8px',
+      text: 'Paste your Cloudflare push worker URL to get warnings even when StormLens is closed. Setup guide: docs/PUSH_SETUP.md in the project. Requires iOS 16.4+ and Home Screen install.',
+    }));
+  }
+
   selectRow('Notification sensitivity', null, 'notifySensitivity',
     [['all', 'All activity'], ['high-only', 'High threats only'], ['off', 'In-app banners only']]);
   toggleRow('Tornado warnings', null, 'alertsEnabled.tornadoWarning');
