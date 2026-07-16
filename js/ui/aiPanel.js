@@ -9,7 +9,7 @@ import { CONFIG } from '../config.js';
 import { stormSummary, tornadoStatement, changeExplanation } from '../analysis/narrative.js';
 import { buildTornadoMeter, scoreClass } from './stormPanel.js';
 import { pointInGeometry } from '../analysis/stormAnalyzer.js';
-import { drawHodograph } from './trendChart.js';
+import { drawHodograph, attachTrendInteraction, SERIES_COLORS } from './trendChart.js';
 import { getFocusPoint } from '../api/sources.js';
 
 const SPC_RANK = ['TSTM', 'MRGL', 'SLGT', 'ENH', 'MDT', 'HIGH'];
@@ -20,7 +20,8 @@ const SPC_NAMES = {
 };
 
 export function renderAiPanel(analyses, env, alerts, user, {
-  onSelect, hiddenCount = 0, outlook = [], week = [], outlookDay2 = [], outlookDay3 = [], onOpenChat,
+  onSelect, hiddenCount = 0, outlook = [], week = [], outlookDay2 = [], outlookDay3 = [],
+  forecast = { daily: [], hourly: [], afd: null }, onOpenChat,
 }) {
   const host = document.getElementById('ai-analysis');
   host.textContent = '';
@@ -72,6 +73,60 @@ export function renderAiPanel(analyses, env, alerts, user, {
     } else {
       card.appendChild(el('p', { class: 'muted', style: 'margin-top:6px; font-size:11.5px', text: 'A quiet stretch — no day shows meaningful storm fuel at your location.' }));
     }
+    host.appendChild(card);
+  }
+
+  // ---- Official NWS 7-day forecast --------------------------------------------
+  if (forecast.daily.length) {
+    const card = el('div', { class: 'card ai-block' });
+    card.appendChild(el('h4', { text: `NWS forecast${forecast.office ? ` (office: ${forecast.office})` : ''} — official` }));
+
+    // Next-24h temperature sparkline (one series; title carries identity).
+    if (forecast.hourly.length >= 4) {
+      card.appendChild(el('div', { class: 'trend-title', text: 'Temperature next 24 h (°F)' }));
+      const tCanvas = el('canvas', { class: 'trend-chart' });
+      card.appendChild(tCanvas);
+      const temps = forecast.hourly.map((h) => ({ t: h.t, v: h.tempF }));
+      requestAnimationFrame(() => attachTrendInteraction(tCanvas, temps, { color: SERIES_COLORS.strength, unit: '°' }));
+      card.appendChild(el('div', { class: 'trend-title', text: 'Precip chance next 24 h (%)' }));
+      const pCanvas = el('canvas', { class: 'trend-chart' });
+      card.appendChild(pCanvas);
+      const precip = forecast.hourly.map((h) => ({ t: h.t, v: h.precip }));
+      requestAnimationFrame(() => attachTrendInteraction(pCanvas, precip, { color: SERIES_COLORS.rain, unit: '%', min: 0, max: 100 }));
+    }
+
+    for (const pd of forecast.daily.slice(0, 9)) {
+      const row = el('div', { class: 'fc-row', onclick: (e) => {
+        const d = e.currentTarget.querySelector('.fc-detail');
+        if (d) d.style.display = d.style.display === 'none' ? 'block' : 'none';
+      } });
+      row.appendChild(el('div', { class: 'fc-head' }, [
+        el('span', { class: 'fc-name', text: pd.name }),
+        el('span', { class: 'fc-temp', text: `${pd.tempF}°${pd.precip ? ` · ${pd.precip}%💧` : ''}` }),
+      ]));
+      row.appendChild(el('div', { class: 'muted', style: 'font-size:11.5px', text: pd.short }));
+      row.appendChild(el('div', { class: 'fc-detail muted', style: 'display:none;font-size:11px;margin-top:3px', text: pd.detailed }));
+      card.appendChild(row);
+    }
+    host.appendChild(card);
+  }
+
+  // ---- Forecaster discussion (AFD) ------------------------------------------------
+  if (forecast.afd?.text) {
+    const card = el('div', { class: 'card ai-block' });
+    const toggle = el('button', {
+      class: 'chat-open-btn', style: 'margin-bottom:0',
+      html: `📄 <strong>Forecaster discussion (AFD${forecast.office ? ` · ${forecast.office}` : ''})</strong> — the local NWS office's own technical write-up${forecast.afd.time ? `, issued ${forecast.afd.time.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}` : ''}. Tap to read.`,
+    });
+    const body = el('pre', {
+      style: 'display:none;white-space:pre-wrap;font-family:var(--mono);font-size:10.5px;line-height:1.4;margin-top:8px;max-height:50vh;overflow-y:auto',
+      text: forecast.afd.text,
+    });
+    toggle.addEventListener('click', () => {
+      body.style.display = body.style.display === 'none' ? 'block' : 'none';
+    });
+    card.appendChild(toggle);
+    card.appendChild(body);
     host.appendChild(card);
   }
 

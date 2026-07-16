@@ -546,6 +546,13 @@ body.night .map-wrap::after {
 .week-fill { height: 100%; border-radius: 4px; }
 .week-label { flex: 0 0 auto; font-size: 10.5px; color: var(--text-dim); max-width: 40%; text-align: right; }
 
+/* ---------- NWS forecast rows ---------- */
+.fc-row { padding: 7px 0; border-bottom: 1px solid var(--border); cursor: pointer; }
+.fc-row:last-child { border-bottom: none; }
+.fc-head { display: flex; justify-content: space-between; align-items: baseline; }
+.fc-name { font-weight: 600; font-size: 13px; }
+.fc-temp { font-family: var(--mono); font-size: 12px; color: var(--text-dim); }
+
 /* ---------- Chase HUD ---------- */
 .chase-hud {
   position: absolute;
@@ -562,6 +569,7 @@ body.night .map-wrap::after {
 .hud-grid { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; }
 .hud-arrow { display: inline-block; color: var(--accent); font-size: 14px; }
 .hud-note { margin-top: 6px; font-size: 10px; color: var(--text-dim); line-height: 1.35; }
+.hud-note-btn { float: right; padding: 2px 8px; min-width: 0; font-size: 13px; }
 .chase-hud[hidden] { display: none; }
 
 /* landscape: tighten chrome */

@@ -21,7 +21,8 @@ import * as geo from './location.js';
 import { evaluateAlerts, evaluateStorms, requestNotificationPermission } from './alerts/alertEngine.js';
 import { connectPush, disconnectPush, syncPush } from './alerts/pushClient.js';
 import { initChat, openChat } from './ui/chatAssistant.js';
-import { bearingDeg, compassDir, fmtSpeed } from './utils.js';
+import { bearingDeg, compassDir, fmtSpeed, sunTimes } from './utils.js';
+import { addNote } from './ui/journal.js';
 import { fetchRadarSites } from './api/iem.js';
 import { getJSON } from './api/client.js';
 import { haversineKm, destinationPoint } from './utils.js';
@@ -165,6 +166,7 @@ const reanalyze = debounce(() => {
     onSelect: selectStorm, hiddenCount,
     outlook: st.outlook, week: st.week,
     outlookDay2: st.outlookDay2, outlookDay3: st.outlookDay3,
+    forecast: st.forecast,
     onOpenChat: openChat,
   });
   updateChaseHud(user);
@@ -313,25 +315,47 @@ function updateChaseHud(user) {
   const target = analyses.find((a) => a.userRel && a.userRel.distKm <= settings.monitorRadiusKm);
   const mySpeed = user.speedMps != null && user.speedMps >= 0
     ? fmtSpeed(user.speedMps * 1.94384, settings.units) : '—';
+  const daylight = daylightText(user);
 
+  const noteBtn = '<button class="product-btn hud-note-btn" id="hud-note-btn">📝</button>';
   if (!target) {
-    hud.innerHTML = `<div class="hud-title">CHASE MODE</div><div class="muted">No target storms in radius · your speed ${escapeHud(mySpeed)}</div>`;
-    return;
+    hud.innerHTML = `<div class="hud-title">CHASE MODE ${noteBtn}</div><div class="muted">No target storms in radius · your speed ${escapeHud(mySpeed)} · ${daylight}</div>`;
+  } else {
+    const brg = bearingDeg(user.lat, user.lon, target.cell.lat, target.cell.lon);
+    const eta = target.userRel.etaMin != null ? `~${target.userRel.etaMin} min to you` : 'not tracking to you';
+    hud.innerHTML = `
+      <div class="hud-title">TARGET · ${escapeHud(target.cell.id)} · ${target.severeScore}/100 ${noteBtn}</div>
+      <div class="hud-grid">
+        <span>Look <strong>${compassDir(brg)}</strong> <span class="hud-arrow" style="transform:rotate(${Math.round(brg)}deg)">➤</span></span>
+        <span>${escapeHud(fmtDistance(target.userRel.distKm, settings.units))}</span>
+        <span>${escapeHud(eta)}</span>
+        <span>You: ${escapeHud(mySpeed)}</span>
+        <span>${daylight}</span>
+      </div>
+      <div class="hud-note">${target.type.id.includes('supercell') || target.type.id === 'supercell'
+        ? 'Right-movers are typically safest viewed from the SE, storm at your NW — never enter the rain core, and keep a paved escape route south or east.'
+        : 'Stay out of the storm\'s path and ahead of the gust front.'} Unofficial guidance — your safety decisions are your own.</div>`;
+    hud.onclick = () => openStormSheet(target);
   }
-  const brg = bearingDeg(user.lat, user.lon, target.cell.lat, target.cell.lon);
-  const eta = target.userRel.etaMin != null ? `~${target.userRel.etaMin} min to you` : 'not tracking to you';
-  hud.innerHTML = `
-    <div class="hud-title">TARGET · ${escapeHud(target.cell.id)} · ${target.severeScore}/100</div>
-    <div class="hud-grid">
-      <span>Look <strong>${compassDir(brg)}</strong> <span class="hud-arrow" style="transform:rotate(${Math.round(brg)}deg)">➤</span></span>
-      <span>${escapeHud(fmtDistance(target.userRel.distKm, settings.units))}</span>
-      <span>${escapeHud(eta)}</span>
-      <span>You: ${escapeHud(mySpeed)}</span>
-    </div>
-    <div class="hud-note">${target.type.id.includes('supercell') || target.type.id === 'supercell'
-      ? 'Right-movers are typically safest viewed from the SE, storm at your NW — never enter the rain core, and keep a paved escape route south or east.'
-      : 'Stay out of the storm\'s path and ahead of the gust front.'} Unofficial guidance — your safety decisions are your own.</div>`;
-  hud.onclick = () => openStormSheet(target);
+  // Quick chase-journal note (stopPropagation so it doesn't open the sheet).
+  const btn = document.getElementById('hud-note-btn');
+  if (btn) {
+    btn.onclick = (e) => {
+      e.stopPropagation();
+      const text = window.prompt('Chase note (saved with time + GPS):');
+      if (text?.trim()) addNote(text.trim(), user);
+    };
+  }
+}
+
+/** "Sunset 8:42 PM · 2h 10m of light" or an after-dark caution. */
+function daylightText(user) {
+  const { sunset } = sunTimes(user.lat, user.lon);
+  if (!sunset) return '';
+  const mins = Math.round((sunset.getTime() - Date.now()) / 60000);
+  if (mins <= 0 || mins > 24 * 60) return '🌙 after dark — extra caution';
+  const hm = mins >= 60 ? `${Math.floor(mins / 60)}h ${mins % 60}m` : `${mins}m`;
+  return `☀️ ${hm} of light left`;
 }
 
 // The HUD builds its HTML from analysed data; escape anything stringy.
@@ -453,6 +477,7 @@ function wireChrome() {
         }
         return;
       }
+      if (path === 'journal.refresh') { rerenderSettings(); return; }
       if (path === 'nightMode') applyTheme();
       if (path === 'chaseMode') applyChaseMode();
       if (path.startsWith('radar') || path === 'colorTable') radar.applyStyle();

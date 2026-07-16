@@ -11,6 +11,7 @@ const LAYERS = [
   ['stormReports', 'Storm reports', 'Spotter reports (hail/wind/tornado) last 6 h'],
   ['metar', 'Surface stations', 'Nearby METAR observations'],
   ['radarSites', 'Radar sites', 'WSR-88D locations; active site highlighted'],
+  ['rangeRings', 'Range rings', '25/50/100 mi rings centered on your location'],
   ['satellite', 'Satellite basemap', 'Imagery under the radar layer'],
 ];
 
