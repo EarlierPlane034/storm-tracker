@@ -89,8 +89,8 @@ async function main() {
   // ---- Data subscriptions ----------------------------------------------------
   sources.subscribe('cells', reanalyze);
   sources.subscribe('alerts', (alerts) => {
-    mapView.renderAlerts(alerts);
-    renderAlerts(alerts, geo.getLocation());
+    mapView.renderAlerts(alerts);      // map polygons always current
+    markPanelsStale(['alerts']);       // list renders when looked at
     evaluateAlerts(alerts, geo.getLocation());
     reanalyze();
   });
@@ -156,6 +156,58 @@ async function main() {
   }
 }
 
+/* ------------- Visibility-gated panel rendering -------------
+ * Hidden panels are never rebuilt on data refreshes — they're marked
+ * stale and rendered the moment they're opened. This keeps the per-minute
+ * refresh cost tiny while the user is watching the radar. */
+const dirtyPanels = new Set(['storms', 'alerts', 'reports', 'ai']);
+
+function isPanelOpen(name) {
+  const p = document.getElementById(`panel-${name}`);
+  return p && !p.hidden;
+}
+
+function renderPanel(name) {
+  const { alerts, environment } = sources.getState();
+  const user = geo.getLocation();
+  const visible = visibleAnalyses(user);
+  const hiddenCount = analyses.length - visible.length;
+  if (name === 'storms') {
+    renderStormList(visible, { onSelect: selectStorm, hiddenCount });
+  } else if (name === 'alerts') {
+    renderAlerts(alerts, user);
+  } else if (name === 'reports') {
+    renderReportsList();
+  } else if (name === 'ai') {
+    const st = sources.getState();
+    renderAiPanel(visible, environment, alerts, user, {
+      onSelect: selectStorm, hiddenCount,
+      outlook: st.outlook, week: st.week,
+      outlookDay2: st.outlookDay2, outlookDay3: st.outlookDay3,
+      forecast: st.forecast,
+      onOpenChat: openChat,
+      onShowTarget: showChaseTarget,
+    });
+  }
+  dirtyPanels.delete(name);
+}
+
+function markPanelsStale(names) {
+  for (const name of names) {
+    if (isPanelOpen(name)) renderPanel(name);
+    else dirtyPanels.add(name);
+  }
+}
+
+function showChaseTarget(t) {
+  document.querySelectorAll('.panel').forEach((p) => { p.hidden = true; });
+  if (targetMarker) mapView.map.removeLayer(targetMarker);
+  targetMarker = L.marker([t.lat, t.lon], {
+    icon: L.divIcon({ className: '', html: '<div style="font-size:26px">🎯</div>', iconSize: [28, 28], iconAnchor: [14, 14] }),
+  }).addTo(mapView.map).bindPopup(`Chase target: ${t.cat} risk area`);
+  mapView.map.flyTo([t.lat, t.lon], 6, { duration: 0.8 });
+}
+
 /** Zoom the map to a storm and open its detail sheet (from any list). */
 function selectStorm(a) {
   document.querySelectorAll('.panel').forEach((p) => { p.hidden = true; });
@@ -179,26 +231,9 @@ const reanalyze = debounce(() => {
   const user = geo.getLocation();
   analyses = analyzeStorms(cells, environment, alerts, reports, user);
 
-  const visible = visibleAnalyses(user);
-  const hiddenCount = analyses.length - visible.length;
-  mapView.renderCells(visible);
-  renderStormList(visible, { onSelect: selectStorm, hiddenCount });
-  const st = sources.getState();
-  renderAiPanel(visible, environment, alerts, user, {
-    onSelect: selectStorm, hiddenCount,
-    outlook: st.outlook, week: st.week,
-    outlookDay2: st.outlookDay2, outlookDay3: st.outlookDay3,
-    forecast: st.forecast,
-    onOpenChat: openChat,
-    onShowTarget: (t) => {
-      document.querySelectorAll('.panel').forEach((p) => { p.hidden = true; });
-      if (targetMarker) mapView.map.removeLayer(targetMarker);
-      targetMarker = L.marker([t.lat, t.lon], {
-        icon: L.divIcon({ className: '', html: '<div style="font-size:26px">🎯</div>', iconSize: [28, 28], iconAnchor: [14, 14] }),
-      }).addTo(mapView.map).bindPopup(`Chase target: ${t.cat} risk area`);
-      mapView.map.flyTo([t.lat, t.lon], 6, { duration: 0.8 });
-    },
-  });
+  // Map + always-on chrome first; list panels only if actually visible.
+  mapView.renderCells(visibleAnalyses(user));
+  markPanelsStale(['storms', 'ai']);
   if (!document.getElementById('glance').hidden) updateGlance();
   updateChaseHud(user);
   updateTicker(user);
@@ -210,7 +245,7 @@ const reanalyze = debounce(() => {
   analyses.forEach(rememberAnalysis);
 }, 400);
 
-/** Repaint the Reports tab + the map's report markers (both sources). */
+/** Map layer for reports (always current) — list renders only when open. */
 function refreshReportsView() {
   const lsr = sources.getState().reports || [];
   // Community reports adapt to the LSR shape for the shared map layer.
@@ -220,10 +255,15 @@ function refreshReportsView() {
     valid: new Date(r.t), source: 'community',
   }));
   mapView.renderReports([...communityAsLsr, ...lsr]);
+  markPanelsStale(['reports']);
+}
+
+function renderReportsList() {
+  const lsr = sources.getState().reports || [];
   renderReports(lsr, communityReports, {
     onSubmit: (type, text, done) =>
       submitReport(type, text, () => { done(); fetchCommunityReports().then((n) => { communityReports = n; refreshReportsView(); }); }),
-    onRefresh: refreshReportsView,
+    onRefresh: renderReportsList,
   });
 }
 
@@ -671,7 +711,8 @@ function wireChrome() {
     }
     tabs.forEach((t) => t.classList.toggle('active', t.dataset.panel === (name || 'map')));
     if (name === 'settings') rerenderSettings();
-    if (name === 'reports') refreshReportsView();
+    // Stale panels render the moment they become visible.
+    if (name && dirtyPanels.has(name)) renderPanel(name);
   };
 
   tabs.forEach((tab) => tab.addEventListener('click', () => {
