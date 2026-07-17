@@ -16,6 +16,8 @@ export const DEFAULT_SETTINGS = {
   chaseMode: false,             // chaser HUD + screen wake lock
   followMe: false,              // auto-center the map on GPS updates
   voiceAlerts: false,           // speak dangerous alerts (works over CarPlay/BT audio)
+  dataSaver: false,             // slower refresh for weak cell signal
+  checklist: {},                // chase checklist state {item: true}
   colorTable: 'classic',        // 'classic' | 'enhanced' | 'grayscale'
   radarSite: 'auto',            // 'auto' (nearest) or a WSR-88D id like 'KTLX'
   monitorRadiusKm: CONFIG.analysis.monitorRadiusKm,

@@ -59,6 +59,36 @@ export function renderSettings({ onChanged, onRequestNotifications, onRouteCheck
   toggleRow('Chase mode', 'On-map HUD with bearing/ETA to your target storm, your speed, and keeps the screen awake', 'chaseMode');
   toggleRow('Follow me', 'Auto-center the map on your position as you drive', 'followMe');
   toggleRow('Spoken alerts', 'Speak dangerous alerts aloud — plays through CarPlay/Bluetooth car audio', 'voiceAlerts');
+  toggleRow('Data saver', 'Slower refresh (5 min) for weak cell signal in the field', 'dataSaver');
+
+  // Pre-chase checklist (persisted; reset before each chase).
+  host.appendChild(el('div', { class: 'muted', style: 'font-size:11px;margin:8px 4px 2px', text: 'Pre-chase checklist' }));
+  const CHECK_ITEMS = [
+    'Fuel topped off', 'Phone + battery pack charged', 'Water & snacks',
+    'First aid kit', 'Flashlight / headlamp', 'Paper map (cell backup)',
+    'Escape routes reviewed', 'Someone knows your plan',
+  ];
+  for (const item of CHECK_ITEMS) {
+    const input = el('input', {
+      type: 'checkbox',
+      onchange: (e) => {
+        settings.checklist[item] = e.target.checked;
+        setSetting('checklist', settings.checklist);
+      },
+    });
+    input.checked = !!settings.checklist[item];
+    host.appendChild(el('div', { class: 'setting-row', style: 'padding:8px 4px' }, [
+      el('label', { text: item }),
+      el('label', { class: 'switch' }, [input, el('span', { class: 'knob' })]),
+    ]));
+  }
+  host.appendChild(el('div', { class: 'setting-row' }, [
+    el('label', { class: 'muted', text: 'Reset checklist for a new chase' }),
+    el('button', {
+      class: 'product-btn', text: 'Reset',
+      onclick: () => { setSetting('checklist', {}); onChanged('journal.refresh'); },
+    }),
+  ]));
 
   section('AI analyst');
   selectRow('AI sensitivity', 'How readily scores climb', 'aiSensitivity',

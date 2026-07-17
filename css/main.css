@@ -256,6 +256,12 @@ html, body {
   border-radius: var(--radius);
   padding: 12px;
   margin-bottom: 10px;
+  contain: content; /* isolate card layout/paint for cheap re-renders */
+}
+/* Long lists: let the browser skip rendering offscreen cards entirely. */
+#storm-list .card, #reports-list .card, #alert-list .card, #ai-analysis .card {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 140px;
 }
 .card h3 { font-size: 14px; margin-bottom: 6px; }
 .card .muted { color: var(--text-dim); font-size: 12px; }
@@ -603,6 +609,8 @@ body.night .map-wrap::after {
 .hud-arrow { display: inline-block; color: var(--accent); font-size: 14px; }
 .hud-note { margin-top: 6px; font-size: 10px; color: var(--text-dim); line-height: 1.35; }
 .hud-note-btn { float: right; padding: 2px 8px; min-width: 0; font-size: 13px; }
+.hud-vitals { margin-top: 6px; font-family: var(--mono); font-size: 10.5px; color: var(--text-dim); }
+.hud-coords { text-decoration: underline dotted; cursor: pointer; }
 .chase-hud[hidden] { display: none; }
 
 /* landscape: tighten chrome */

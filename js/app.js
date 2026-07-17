@@ -218,7 +218,8 @@ function updateTicker(user) {
   const ticker = document.getElementById('ai-ticker');
   const text = document.getElementById('ai-ticker-text');
   ticker.hidden = false;
-  text.textContent = tickerHeadline(analyses, user);
+  const next = tickerHeadline(analyses, user);
+  if (text.textContent !== next) text.textContent = next; // avoid needless paints
 }
 
 function updateGpsChip(user) {
@@ -239,6 +240,11 @@ function updateGpsChip(user) {
 
 /* ---------------- Radar product rail + animation bar ---------------- */
 
+// Primary products stay visible; the rest live behind the ••• toggle so
+// the rail doesn't bury the map on small screens.
+const PRIMARY_PRODUCTS = ['CREF', 'N0Q', 'N0U', 'N0S', 'SVIS', 'SIR'];
+let railExpanded = false;
+
 function renderProductRail() {
   const rail = document.getElementById('product-rail');
   rail.textContent = '';
@@ -254,10 +260,10 @@ function renderProductRail() {
     onclick: toggleSitePicker,
   }));
 
-  for (const prod of radar.productList) {
+  const addBtn = (prod) => {
     const active = prod.id === radar.productId;
     const tiltSuffix = active && prod.tilts && radar.tiltIndex > 0 ? ` T${radar.tiltIndex + 1}` : '';
-    const btn = el('button', {
+    rail.appendChild(el('button', {
       class: `product-btn ${active ? 'active' : ''} ${prod.available ? '' : 'unavailable'}`,
       text: `${prod.label}${tiltSuffix}`,
       title: prod.name,
@@ -270,9 +276,24 @@ function renderProductRail() {
           radar.setProduct(prod.id);
         }
       },
-    });
-    rail.appendChild(btn);
+    }));
+  };
+
+  const primary = radar.productList.filter((p) => PRIMARY_PRODUCTS.includes(p.id));
+  const extra = radar.productList.filter((p) => !PRIMARY_PRODUCTS.includes(p.id));
+  // An active extra product surfaces itself so it's never hidden.
+  for (const prod of primary) addBtn(prod);
+  if (!railExpanded) {
+    for (const prod of extra) if (prod.id === radar.productId) addBtn(prod);
+  } else {
+    for (const prod of extra) addBtn(prod);
   }
+  rail.appendChild(el('button', {
+    class: 'product-btn',
+    text: railExpanded ? '▲' : '•••',
+    title: railExpanded ? 'Fewer products' : 'More products',
+    onclick: () => { railExpanded = !railExpanded; renderProductRail(); },
+  }));
 }
 
 /* ---------------- Radar site picker ---------------- */
@@ -403,9 +424,25 @@ function updateChaseHud(user) {
     ? fmtSpeed(user.speedMps * 1.94384, settings.units) : '—';
   const daylight = daylightText(user);
 
+  // Chaser vitals: nearest surface ob (T/Td spread drives storm quality)
+  // and estimated cloud-base height from the model LCL.
+  const st = sources.getState();
+  const ob = (st.obs || []).find((o) => o.tempC != null);
+  const vitals = [];
+  if (ob) {
+    const t = Math.round(ob.tempC * 9 / 5 + 32);
+    const td = ob.dewpointC != null ? Math.round(ob.dewpointC * 9 / 5 + 32) : null;
+    vitals.push(`T ${t}°${td != null ? ` / Td ${td}°` : ''} (${ob.station})`);
+  }
+  if (st.environment?.lclM != null) {
+    vitals.push(`cloud base ~${(st.environment.lclM * 3.281 / 1000).toFixed(1)} kft`);
+  }
+  const coordsLine = `<span class="hud-coords" id="hud-coords" title="Tap to copy">${user.lat.toFixed(4)}, ${user.lon.toFixed(4)} ⧉</span>`;
+  const vitalsLine = `<div class="hud-vitals">${vitals.map(escapeHud).join(' · ')}${vitals.length ? ' · ' : ''}${coordsLine}</div>`;
+
   const noteBtn = '<button class="product-btn hud-note-btn" id="hud-note-btn">📝</button>';
   if (!target) {
-    hud.innerHTML = `<div class="hud-title">CHASE MODE ${noteBtn}</div><div class="muted">No target storms in radius · your speed ${escapeHud(mySpeed)} · ${daylight}</div>`;
+    hud.innerHTML = `<div class="hud-title">CHASE MODE ${noteBtn}</div><div class="muted">No target storms in radius · your speed ${escapeHud(mySpeed)} · ${daylight}</div>${vitalsLine}`;
   } else {
     const brg = bearingDeg(user.lat, user.lon, target.cell.lat, target.cell.lon);
     const eta = target.userRel.etaMin != null ? `~${target.userRel.etaMin} min to you` : 'not tracking to you';
@@ -420,7 +457,8 @@ function updateChaseHud(user) {
       </div>
       <div class="hud-note">${target.type.id.includes('supercell') || target.type.id === 'supercell'
         ? 'Right-movers are typically safest viewed from the SE, storm at your NW — never enter the rain core, and keep a paved escape route south or east.'
-        : 'Stay out of the storm\'s path and ahead of the gust front.'} Unofficial guidance — your safety decisions are your own.</div>`;
+        : 'Stay out of the storm\'s path and ahead of the gust front.'} Unofficial guidance — your safety decisions are your own.</div>
+      ${vitalsLine}`;
     hud.onclick = () => openStormSheet(target);
   }
   // Quick chase-journal note (stopPropagation so it doesn't open the sheet).
@@ -430,6 +468,15 @@ function updateChaseHud(user) {
       e.stopPropagation();
       const text = window.prompt('Chase note (saved with time + GPS):');
       if (text?.trim()) addNote(text.trim(), user);
+    };
+  }
+  // Tap coordinates to copy (for phoning in reports).
+  const coords = document.getElementById('hud-coords');
+  if (coords) {
+    coords.onclick = (e) => {
+      e.stopPropagation();
+      navigator.clipboard?.writeText(`${user.lat.toFixed(5)}, ${user.lon.toFixed(5)}`)
+        .then(() => showToast('GPS coordinates copied.'));
     };
   }
 }
@@ -567,6 +614,16 @@ function wireChrome() {
       if (path === 'journal.refresh') { rerenderSettings(); return; }
       if (path === 'nightMode') applyTheme();
       if (path === 'chaseMode') applyChaseMode();
+      if (path === 'dataSaver') {
+        // One switch adjusts the cadence knobs for weak-signal chasing.
+        settings.refreshIntervalSec = settings.dataSaver ? 300 : 60;
+        settings.animFps = settings.dataSaver ? 2 : 4;
+        setSetting('refreshIntervalSec', settings.refreshIntervalSec);
+        radar.rebuild();
+        showToast(settings.dataSaver
+          ? 'Data saver ON — radar refreshes every 5 min to stretch weak signal.'
+          : 'Data saver off — back to 1-minute refresh.');
+      }
       if (path.startsWith('radar') || path === 'colorTable') radar.applyStyle();
       if (path === 'refreshIntervalSec' || path === 'animFps') radar.rebuild();
       if (['units', 'monitorRadiusKm', 'aiSensitivity', 'showTechnical',

@@ -79,6 +79,10 @@ export function renderReports(lsr, community, { onSubmit, onRefresh }) {
       onclick: () => onSubmit(typeSel.value, textIn.value.trim(), () => { textIn.value = ''; }),
     }));
     submit.appendChild(el('div', { class: 'muted', style: 'font-size:10px;margin-top:4px', text: 'Only report what you can visually confirm. For life-threatening events call 911 first; your NWS office also takes reports at weather.gov/spotter.' }));
+    submit.appendChild(el('div', {
+      class: 'muted', style: 'font-size:10px;margin-top:4px;font-family:var(--mono)',
+      text: 'Hail size guide: pea 0.25" · quarter 1.0" (severe) · golf ball 1.75" · hen egg 2.0" · tennis ball 2.5" · baseball 2.75" · softball 4.0"',
+    }));
   }
   host.appendChild(submit);
 
