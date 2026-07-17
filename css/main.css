@@ -528,6 +528,7 @@ body.night .map-wrap::after {
   padding: 6px 10px;
   cursor: pointer;
 }
+.chat-chip.chip-active { color: var(--accent); border-color: var(--accent-dim); }
 .chat-inputrow { display: flex; gap: 8px; padding: 6px 0; }
 .chat-inputrow input {
   flex: 1;

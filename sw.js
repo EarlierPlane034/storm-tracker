@@ -11,7 +11,7 @@
  *    cached tiles are served only when offline.
  * ========================================================================== */
 
-const VERSION = 'stormlens-v8';
+const VERSION = 'stormlens-v9';
 const SHELL_CACHE = `${VERSION}-shell`;
 const DATA_CACHE = `${VERSION}-data`;
 const TILE_CACHE = `${VERSION}-tiles`;
@@ -48,6 +48,7 @@ const SHELL_ASSETS = [
   './js/ui/toasts.js',
   './js/ui/chatAssistant.js',
   './js/ui/journal.js',
+  './js/ui/reportsPanel.js',
   './js/alerts/alertEngine.js',
   './js/alerts/pushClient.js',
   './icons/icon-192.png',

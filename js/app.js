@@ -23,6 +23,7 @@ import { connectPush, disconnectPush, syncPush } from './alerts/pushClient.js';
 import { initChat, openChat } from './ui/chatAssistant.js';
 import { bearingDeg, compassDir, fmtSpeed, sunTimes } from './utils.js';
 import { addNote } from './ui/journal.js';
+import { renderReports, submitReport, fetchCommunityReports } from './ui/reportsPanel.js';
 import { fetchRadarSites } from './api/iem.js';
 import { getJSON } from './api/client.js';
 import { haversineKm, destinationPoint } from './utils.js';
@@ -30,6 +31,7 @@ import { haversineKm, destinationPoint } from './utils.js';
 let mapView, radar;
 let analyses = [];
 let route = null; // { name, coords: [[lat,lon],...] }
+let communityReports = [];
 
 /** Leaflet loads via a deferred CDN script; wait for it before map init. */
 function whenLeafletReady() {
@@ -89,7 +91,19 @@ async function main() {
     evaluateAlerts(alerts, geo.getLocation());
     reanalyze();
   });
-  sources.subscribe('reports', (reports) => mapView.renderReports(reports));
+  sources.subscribe('reports', () => refreshReportsView());
+  // Community reports from the user's own worker DB (no-op until set up).
+  const pollCommunity = async () => {
+    const next = await fetchCommunityReports();
+    if (next.length !== communityReports.length) {
+      communityReports = next;
+      refreshReportsView();
+    } else {
+      communityReports = next;
+    }
+  };
+  pollCommunity();
+  setInterval(pollCommunity, 120_000);
   sources.subscribe('outlook', (features) => mapView.renderOutlook(features));
   sources.subscribe('obs', (obs) => mapView.renderObservations(obs));
   sources.subscribe('environment', reanalyze);
@@ -105,6 +119,7 @@ async function main() {
     }
     mapView.setUserLocation(loc.lat, loc.lon, loc.accuracyM);
     sources.setFocusPoint(loc.lat, loc.lon);
+    if (settings.followMe) mapView.map.panTo([loc.lat, loc.lon]);
     syncPush(); // keep the push worker's copy of our location fresh
     reanalyze();
   });
@@ -181,6 +196,23 @@ const reanalyze = debounce(() => {
   // Remember AFTER alerting so change explanations compare to the last pass.
   analyses.forEach(rememberAnalysis);
 }, 400);
+
+/** Repaint the Reports tab + the map's report markers (both sources). */
+function refreshReportsView() {
+  const lsr = sources.getState().reports || [];
+  // Community reports adapt to the LSR shape for the shared map layer.
+  const communityAsLsr = communityReports.map((r) => ({
+    lat: r.lat, lon: r.lon, type: r.type, magnitude: null, unit: '',
+    city: 'community report', state: '', remark: r.text || '',
+    valid: new Date(r.t), source: 'community',
+  }));
+  mapView.renderReports([...communityAsLsr, ...lsr]);
+  renderReports(lsr, communityReports, {
+    onSubmit: (type, text, done) =>
+      submitReport(type, text, () => { done(); fetchCommunityReports().then((n) => { communityReports = n; refreshReportsView(); }); }),
+    onRefresh: refreshReportsView,
+  });
+}
 
 function updateTicker(user) {
   const ticker = document.getElementById('ai-ticker');
@@ -485,7 +517,7 @@ async function checkRoute(dest) {
 /* ---------------- Panels / tabs / settings ---------------- */
 
 function wireChrome() {
-  const panels = ['storms', 'alerts', 'ai', 'settings'];
+  const panels = ['storms', 'alerts', 'reports', 'ai', 'settings'];
   const tabs = document.querySelectorAll('.tab');
 
   const showPanel = (name) => {
@@ -494,6 +526,7 @@ function wireChrome() {
     }
     tabs.forEach((t) => t.classList.toggle('active', t.dataset.panel === (name || 'map')));
     if (name === 'settings') rerenderSettings();
+    if (name === 'reports') refreshReportsView();
   };
 
   tabs.forEach((tab) => tab.addEventListener('click', () => {

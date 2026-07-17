@@ -43,8 +43,27 @@ function once(key, fn) {
   fn();
 }
 
+let speaking = 0;
+
+/**
+ * Speak an alert aloud (Web Speech API). With the phone on CarPlay or
+ * Bluetooth this comes out of the car speakers — the closest a web app
+ * can get to CarPlay integration.
+ */
+function speak(text) {
+  if (!settings.voiceAlerts || typeof speechSynthesis === 'undefined') return;
+  if (speaking >= 2) return; // don't queue-flood during outbreaks
+  const u = new SpeechSynthesisUtterance(text.replace(/[🌪⛈💧🚨📍☀️🌙]/g, ''));
+  u.rate = 0.95;
+  speaking++;
+  u.onend = () => { speaking = Math.max(0, speaking - 1); };
+  u.onerror = u.onend;
+  speechSynthesis.speak(u);
+}
+
 function deliver(title, body, level = 'warn') {
   showToast(`${title} — ${body}`, { level, ttlMs: 12_000 });
+  if (level === 'danger') speak(`${title}. ${body}`);
   if (settings.notifySensitivity === 'off') return;
   if (settings.notifySensitivity === 'high-only' && level !== 'danger') return;
   if (typeof Notification !== 'undefined' && Notification.permission === 'granted' &&
