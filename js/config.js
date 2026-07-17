@@ -9,7 +9,7 @@
 export const CONFIG = {
   app: {
     name: 'StormLens',
-    version: '1.0.0',
+    version: '1.11.0',
   },
 
   endpoints: {

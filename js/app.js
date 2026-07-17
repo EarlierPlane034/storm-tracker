@@ -24,6 +24,7 @@ import { initChat, openChat } from './ui/chatAssistant.js';
 import { bearingDeg, compassDir, fmtSpeed, sunTimes } from './utils.js';
 import { addNote } from './ui/journal.js';
 import { renderReports, submitReport, fetchCommunityReports } from './ui/reportsPanel.js';
+import { renderAbout } from './ui/aboutPanel.js';
 import { fetchRadarSites } from './api/iem.js';
 import { getJSON } from './api/client.js';
 import { haversineKm, destinationPoint } from './utils.js';
@@ -564,7 +565,7 @@ async function checkRoute(dest) {
 /* ---------------- Panels / tabs / settings ---------------- */
 
 function wireChrome() {
-  const panels = ['storms', 'alerts', 'reports', 'ai', 'settings'];
+  const panels = ['storms', 'alerts', 'reports', 'ai', 'settings', 'about'];
   const tabs = document.querySelectorAll('.tab');
 
   const showPanel = (name) => {
@@ -612,6 +613,7 @@ function wireChrome() {
         return;
       }
       if (path === 'journal.refresh') { rerenderSettings(); return; }
+      if (path === 'about.open') { renderAbout(); showPanel('about'); return; }
       if (path === 'nightMode') applyTheme();
       if (path === 'chaseMode') applyChaseMode();
       if (path === 'dataSaver') {
