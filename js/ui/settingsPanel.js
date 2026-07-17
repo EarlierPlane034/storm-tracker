@@ -205,6 +205,12 @@ export function renderSettings({ onChanged, onRequestNotifications, onRouteCheck
     ]));
   }
 
+  section('About');
+  host.appendChild(el('div', { class: 'setting-row' }, [
+    el('label', { html: 'About StormLens<span class="hint">Everything the app can do, data sources, credits</span>' }),
+    el('button', { class: 'product-btn', text: 'Open →', onclick: () => onChanged('about.open') }),
+  ]));
+
   host.appendChild(el('div', {
     class: 'ai-disclaimer', style: 'margin-top:16px',
     text: 'StormLens combines NOAA/NWS radar & alerts (via api.weather.gov and the Iowa Environmental Mesonet) with Open-Meteo model data. All AI interpretation is unofficial.',

@@ -613,6 +613,30 @@ body.night .map-wrap::after {
 .hud-coords { text-decoration: underline dotted; cursor: pointer; }
 .chase-hud[hidden] { display: none; }
 
+/* ---------- About screen ---------- */
+.about-hero { display: flex; align-items: center; gap: 14px; padding: 8px 2px 12px; }
+.about-icon { width: 64px; height: 64px; border-radius: 15px; box-shadow: 0 4px 14px rgba(0,0,0,0.45); }
+.about-name { font-size: 22px; font-weight: 800; letter-spacing: 0.3px; }
+.about-group {
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  margin-bottom: 8px;
+  overflow: hidden;
+}
+.about-group summary {
+  padding: 12px 14px;
+  font-size: 13.5px;
+  font-weight: 700;
+  cursor: pointer;
+  list-style: none;
+}
+.about-group summary::-webkit-details-marker { display: none; }
+.about-group summary::after { content: "▸"; float: right; color: var(--text-dim); transition: transform 0.15s; }
+.about-group[open] summary::after { transform: rotate(90deg); }
+.about-list { margin: 0 14px 12px 28px; }
+.about-list li { font-size: 12.5px; line-height: 1.5; color: var(--text); margin-bottom: 4px; }
+
 /* landscape: tighten chrome */
 @media (orientation: landscape) and (max-height: 500px) {
   .tab { padding: 8px 2px; }
