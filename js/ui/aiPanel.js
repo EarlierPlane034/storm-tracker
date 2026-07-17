@@ -180,6 +180,9 @@ export function renderAiPanel(analyses, env, alerts, user, {
     host.appendChild(card);
   }
 
+  // ---- SPC Mesoanalysis viewer (chaser staple) --------------------------------
+  host.appendChild(buildMesoanalysisCard());
+
   if (hiddenCount > 0) {
     host.appendChild(el('div', {
       class: 'muted', style: 'text-align:center; padding: 6px; font-size: 11px',
@@ -187,6 +190,67 @@ export function renderAiPanel(analyses, env, alerts, user, {
     }));
   }
   host.appendChild(el('div', { class: 'ai-disclaimer', text: CONFIG.disclaimer }));
+}
+
+/**
+ * SPC Mesoanalysis viewer — live parameter maps straight from the Storm
+ * Prediction Center (national sector). These are official graphics loaded
+ * as images; a broken image means SPC is regenerating that panel.
+ */
+const MESO_PARAMS = [
+  ['pmsl', 'Surface map'],
+  ['ttd', 'Temp / dewpoint'],
+  ['sbcp', 'SBCAPE'],
+  ['eshr', 'Effective shear'],
+  ['srh1', '0–1 km SRH'],
+  ['scp', 'Supercell composite'],
+  ['stor', 'Sig tornado (STP)'],
+];
+let mesoParam = 'sbcp';
+let mesoOpen = false;
+
+function buildMesoanalysisCard() {
+  const card = el('div', { class: 'card ai-block' });
+  const toggle = el('button', {
+    class: 'chat-open-btn', style: 'margin-bottom:0',
+    html: '🗺 <strong>SPC Mesoanalysis</strong> — live CAPE, shear, SRH and composite-parameter maps from the Storm Prediction Center. Tap to view.',
+  });
+  const body = el('div', { style: mesoOpen ? '' : 'display:none' });
+  toggle.addEventListener('click', () => {
+    mesoOpen = !mesoOpen;
+    body.style.display = mesoOpen ? 'block' : 'none';
+  });
+
+  const chips = el('div', { class: 'chat-chips' });
+  const img = el('img', {
+    style: 'width:100%;border-radius:8px;background:#fff;margin-top:6px',
+    alt: 'SPC mesoanalysis graphic',
+  });
+  const err = el('div', { class: 'muted', style: 'display:none;font-size:11px', text: 'That panel isn\'t loading right now — SPC regenerates them every hour; try another parameter.' });
+  const setParam = (p) => {
+    mesoParam = p;
+    err.style.display = 'none';
+    img.style.display = 'block';
+    img.src = `https://www.spc.noaa.gov/exper/mesoanalysis/s19/${p}/${p}.gif?t=${Math.floor(Date.now() / 600000)}`;
+    [...chips.children].forEach((c) => c.classList.toggle('chip-active', c.dataset.p === p));
+  };
+  img.onerror = () => { img.style.display = 'none'; err.style.display = 'block'; };
+  for (const [p, label] of MESO_PARAMS) {
+    chips.appendChild(el('button', {
+      class: `chat-chip ${p === mesoParam ? 'chip-active' : ''}`, 'data-p': p, text: label,
+      onclick: () => setParam(p),
+    }));
+  }
+  body.appendChild(chips);
+  body.appendChild(img);
+  body.appendChild(err);
+  body.appendChild(el('div', { class: 'muted', style: 'font-size:10px;margin-top:4px', text: 'Official SPC graphics (national sector), updated hourly. spc.noaa.gov/exper/mesoanalysis' }));
+  if (mesoOpen) setParam(mesoParam);
+  else toggle.addEventListener('click', () => { if (mesoOpen && !img.src) setParam(mesoParam); }, { once: false });
+
+  card.appendChild(toggle);
+  card.appendChild(body);
+  return card;
 }
 
 /** Highest SPC category label whose polygon contains the point. */
