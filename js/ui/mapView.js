@@ -206,6 +206,47 @@ export class MapView {
     if (this._ghost) { this.map.removeLayer(this._ghost); this._ghost = null; }
   }
 
+  /** Chase-day replay: your GPS breadcrumb + journal notes on the map. */
+  showChaseTrack(track, notes) {
+    this.clearChaseTrack();
+    if (track.length < 2) return;
+    this._chaseTrack = L.layerGroup().addTo(this.map);
+    const line = L.polyline(track.map((p) => [p.lat, p.lon]), {
+      color: '#38bdf8', weight: 3, opacity: 0.85,
+    });
+    this._chaseTrack.addLayer(line);
+    for (const n of notes) {
+      if (n.lat == null) continue;
+      this._chaseTrack.addLayer(L.marker([n.lat, n.lon], {
+        icon: L.divIcon({ className: '', html: '<div style="font-size:15px">📝</div>', iconSize: [18, 18] }),
+      }).bindPopup(`<strong>${new Date(n.t).toLocaleTimeString()}</strong><br>${escape(n.text)}`));
+    }
+    this.map.fitBounds(line.getBounds(), { padding: [40, 40] });
+  }
+
+  clearChaseTrack() {
+    if (this._chaseTrack) { this.map.removeLayer(this._chaseTrack); this._chaseTrack = null; }
+  }
+
+  /** Historical tornado tracks (SPC 1950→present archive), colored by rating. */
+  renderTornadoHistory(tracks) {
+    this.clearTornadoHistory();
+    this._torHistory = L.layerGroup().addTo(this.map);
+    const magColor = ['#64748b', '#34d399', '#fbbf24', '#fb923c', '#ef4444', '#e879f9'];
+    for (const t of tracks) {
+      const color = magColor[Math.max(0, Math.min(5, t.mag))] || '#64748b';
+      const layer = t.elat && t.elon && (t.elat !== t.slat || t.elon !== t.slon)
+        ? L.polyline([[t.slat, t.slon], [t.elat, t.elon]], { color, weight: t.mag >= 3 ? 3 : 1.5, opacity: 0.7 })
+        : L.circleMarker([t.slat, t.slon], { radius: 3, color, fillOpacity: 0.7, weight: 1 });
+      layer.bindPopup(`<strong>${t.mag >= 0 ? `EF/F${t.mag}` : 'Unrated'} tornado</strong><br>${escape(t.date)}${t.fat ? `<br>${t.fat} fatalities` : ''}`);
+      this._torHistory.addLayer(layer);
+    }
+  }
+
+  clearTornadoHistory() {
+    if (this._torHistory) { this.map.removeLayer(this._torHistory); this._torHistory = null; }
+  }
+
   /** Draw (or replace) the checked travel route. */
   setRoute(latlngs) {
     this.clearRoute();
@@ -339,12 +380,25 @@ export class MapView {
           color, weight: 2, opacity: 0.7, dashArray: '4 6', interactive: false,
         });
         this.groups.stormTracks.addLayer(line);
-        // Tick marks at each projected position.
-        for (const p of pts.slice(1)) {
-          this.groups.stormTracks.addLayer(L.circleMarker(p, {
-            radius: 2.5, color, fillOpacity: 0.9, weight: 1, interactive: false,
-          }));
-        }
+        // Warned/dangerous storms get RadarScope-style time-of-arrival
+        // labels; weaker cells keep quiet tick marks to avoid clutter.
+        const labelled = a.warnings.length > 0 || a.severeScore >= 61;
+        pts.slice(1).forEach((p, i) => {
+          if (labelled) {
+            this.groups.stormTracks.addLayer(L.marker(p, {
+              icon: L.divIcon({
+                className: '',
+                html: `<div class="toa-label" style="border-color:${color}">+${(i + 1) * 15}</div>`,
+                iconSize: null, iconAnchor: [12, 8],
+              }),
+              interactive: false,
+            }));
+          } else {
+            this.groups.stormTracks.addLayer(L.circleMarker(p, {
+              radius: 2.5, color, fillOpacity: 0.9, weight: 1, interactive: false,
+            }));
+          }
+        });
         line.bindTooltip(`moving ${compassDir(c.moveDirDeg)} at ${fmtSpeed(c.moveSpeedKts, settings.units)}`);
       }
     }

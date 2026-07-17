@@ -33,7 +33,32 @@ export function getNotes() {
 }
 
 /** Render the journal section inside the Settings panel. */
-export function renderJournalSection(host, { onChanged }) {
+export function renderJournalSection(host, { onChanged, onShowTrack }) {
+  // Chase-day replay controls.
+  const track = getTrack();
+  host.appendChild(el('div', { class: 'setting-row' }, [
+    el('label', { html: `Chase track<span class="hint">${track.length ? `${track.length} GPS points recorded while chase mode was on` : 'Turn on Chase mode to record your route'}</span>` }),
+    el('div', { style: 'display:flex;gap:6px' }, [
+      track.length >= 2 ? el('button', { class: 'product-btn', text: 'Replay', onclick: () => onShowTrack?.() }) : null,
+      track.length ? el('button', { class: 'product-btn', text: 'Clear', onclick: () => { clearTrack(); onChanged(); } }) : null,
+    ]),
+  ]));
+  const summary = chaseSummaryText();
+  if (summary) {
+    host.appendChild(el('div', { class: 'setting-row' }, [
+      el('label', { class: 'muted', text: 'Share the full chase log (track + notes)' }),
+      el('button', {
+        class: 'product-btn', text: 'Share log',
+        onclick: async () => {
+          try {
+            if (navigator.share) await navigator.share({ title: 'StormLens chase log', text: summary });
+            else { await navigator.clipboard.writeText(summary); showToast('Chase log copied.'); }
+          } catch { /* cancelled */ }
+        },
+      }),
+    ]));
+  }
+
   const notes = load();
   if (!notes.length) {
     host.appendChild(el('div', { class: 'muted', style: 'font-size:11px;margin:0 4px 8px', text: 'No notes yet. In Chase mode, tap 📝 on the HUD to log a time/GPS-stamped observation ("wall cloud NW of Anadarko").' }));
@@ -75,4 +100,51 @@ export function renderJournalSection(host, { onChanged }) {
 
 function escapeText(s) {
   return String(s).replace(/[&<>"]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]));
+}
+
+/* ---------------- Chase track: GPS breadcrumb while chase mode is on ---------------- */
+
+const TRACK_KEY = 'stormlens.chasetrack.v1';
+let lastTrackPoint = 0;
+
+/** Record a breadcrumb (throttled to one point / 30 s, capped at 2000). */
+export function recordTrackPoint(loc) {
+  if (Date.now() - lastTrackPoint < 30_000) return;
+  lastTrackPoint = Date.now();
+  try {
+    const track = getTrack();
+    track.push({ t: Date.now(), lat: +loc.lat.toFixed(5), lon: +loc.lon.toFixed(5) });
+    localStorage.setItem(TRACK_KEY, JSON.stringify(track.slice(-2000)));
+  } catch { /* best effort */ }
+}
+
+export function getTrack() {
+  try { return JSON.parse(localStorage.getItem(TRACK_KEY)) || []; } catch { return []; }
+}
+
+export function clearTrack() {
+  try { localStorage.removeItem(TRACK_KEY); } catch { /* ok */ }
+}
+
+/** Human chase-day summary combining the track and the journal. */
+export function chaseSummaryText() {
+  const track = getTrack();
+  const notes = getNotes();
+  if (!track.length && !notes.length) return null;
+  const lines = ['⛈ StormLens chase log'];
+  if (track.length) {
+    let km = 0;
+    for (let i = 1; i < track.length; i++) {
+      const a = track[i - 1], b = track[i];
+      const dLat = (b.lat - a.lat) * 111, dLon = (b.lon - a.lon) * 111 * Math.cos(a.lat * Math.PI / 180);
+      km += Math.hypot(dLat, dLon);
+    }
+    const from = new Date(track[0].t), to = new Date(track[track.length - 1].t);
+    lines.push(`Track: ${track.length} points, ~${Math.round(km * 0.621)} mi, ${from.toLocaleString()} → ${to.toLocaleTimeString()}`);
+  }
+  for (const n of notes) {
+    const gps = n.lat != null ? ` (${n.lat.toFixed(3)}, ${n.lon.toFixed(3)})` : '';
+    lines.push(`${new Date(n.t).toLocaleTimeString()}${gps}: ${n.text}`);
+  }
+  return lines.join('\n');
 }

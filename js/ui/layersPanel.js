@@ -15,9 +15,22 @@ const LAYERS = [
   ['satellite', 'Satellite basemap', 'Imagery under the radar layer'],
 ];
 
-export function renderLayers({ onChanged }) {
+export function renderLayers({ onChanged, onGlance, onTornadoHistory }) {
   const host = document.getElementById('layers-body');
   host.textContent = '';
+
+  if (onGlance) {
+    host.appendChild(el('div', { class: 'setting-row' }, [
+      el('label', { html: '👁 Glance mode<span class="hint">Giant-type status screen, readable across the room</span>' }),
+      el('button', { class: 'product-btn', text: 'Open', onclick: onGlance }),
+    ]));
+  }
+  if (onTornadoHistory) {
+    host.appendChild(el('div', { class: 'setting-row' }, [
+      el('label', { html: '🌪 Tornado history<span class="hint">Every recorded tornado since 1950 near the map view (one-time ~10 MB download from SPC)</span>' }),
+      el('button', { class: 'product-btn', text: 'Load', onclick: onTornadoHistory }),
+    ]));
+  }
   for (const [key, label, hint] of LAYERS) {
     const input = el('input', {
       type: 'checkbox',

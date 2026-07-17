@@ -18,6 +18,8 @@ export const DEFAULT_SETTINGS = {
   voiceAlerts: false,           // speak dangerous alerts (works over CarPlay/BT audio)
   dataSaver: false,             // slower refresh for weak cell signal
   checklist: {},                // chase checklist state {item: true}
+  hapticAlerts: false,          // vibration patterns (Android; iOS blocks web vibration)
+  language: 'en',               // 'en' | 'es' — alert titles/instructions/voice
   colorTable: 'classic',        // 'classic' | 'enhanced' | 'grayscale'
   radarSite: 'auto',            // 'auto' (nearest) or a WSR-88D id like 'KTLX'
   monitorRadiusKm: CONFIG.analysis.monitorRadiusKm,

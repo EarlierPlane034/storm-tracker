@@ -60,6 +60,7 @@
         <button class="anim-btn" id="btn-play" aria-label="Play radar loop">&#9654;</button>
         <input type="range" id="anim-scrub" class="anim-scrub" min="0" max="10" value="10" aria-label="Radar frame">
         <span class="anim-time" id="anim-time">LIVE</span>
+        <button class="anim-btn" id="btn-snapshot" aria-label="Share radar snapshot">📷</button>
       </div>
 
       <!-- Colour table legend -->
@@ -149,6 +150,9 @@
         <div class="muted" style="font-size:9.5px;text-align:center;padding:2px 8px">On-device assistant using live analysis data. Unofficial — follow NWS warnings.</div>
       </div>
     </section>
+
+    <!-- Glance mode: giant-type status readable across the room -->
+    <div class="glance" id="glance" hidden></div>
 
     <!-- Toast / in-app alert banners -->
     <div class="toasts" id="toasts" aria-live="polite"></div>

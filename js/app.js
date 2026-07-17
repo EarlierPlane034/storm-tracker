@@ -22,7 +22,8 @@ import { evaluateAlerts, evaluateStorms, requestNotificationPermission } from '.
 import { connectPush, disconnectPush, syncPush } from './alerts/pushClient.js';
 import { initChat, openChat } from './ui/chatAssistant.js';
 import { bearingDeg, compassDir, fmtSpeed, sunTimes } from './utils.js';
-import { addNote } from './ui/journal.js';
+import { addNote, getNotes, getTrack, recordTrackPoint } from './ui/journal.js';
+import { captureMap } from './ui/snapshot.js';
 import { renderReports, submitReport, fetchCommunityReports } from './ui/reportsPanel.js';
 import { renderAbout } from './ui/aboutPanel.js';
 import { fetchRadarSites } from './api/iem.js';
@@ -33,6 +34,7 @@ let mapView, radar;
 let analyses = [];
 let route = null; // { name, coords: [[lat,lon],...] }
 let communityReports = [];
+let targetMarker = null;
 
 /** Leaflet loads via a deferred CDN script; wait for it before map init. */
 function whenLeafletReady() {
@@ -121,6 +123,7 @@ async function main() {
     mapView.setUserLocation(loc.lat, loc.lon, loc.accuracyM);
     sources.setFocusPoint(loc.lat, loc.lon);
     if (settings.followMe) mapView.map.panTo([loc.lat, loc.lon]);
+    if (settings.chaseMode) recordTrackPoint(loc); // chase-day breadcrumb
     syncPush(); // keep the push worker's copy of our location fresh
     reanalyze();
   });
@@ -187,7 +190,16 @@ const reanalyze = debounce(() => {
     outlookDay2: st.outlookDay2, outlookDay3: st.outlookDay3,
     forecast: st.forecast,
     onOpenChat: openChat,
+    onShowTarget: (t) => {
+      document.querySelectorAll('.panel').forEach((p) => { p.hidden = true; });
+      if (targetMarker) mapView.map.removeLayer(targetMarker);
+      targetMarker = L.marker([t.lat, t.lon], {
+        icon: L.divIcon({ className: '', html: '<div style="font-size:26px">🎯</div>', iconSize: [28, 28], iconAnchor: [14, 14] }),
+      }).addTo(mapView.map).bindPopup(`Chase target: ${t.cat} risk area`);
+      mapView.map.flyTo([t.lat, t.lon], 6, { duration: 0.8 });
+    },
   });
+  if (!document.getElementById('glance').hidden) updateGlance();
   updateChaseHud(user);
   updateTicker(user);
   updateGpsChip(user);
@@ -375,6 +387,91 @@ function updateAnimBar({ index, total, offsetMin, isLive }) {
   time.className = `anim-time ${isLive ? 'live' : ''}`;
   // Time-matched playback: storm markers slide back to where they were.
   mapView?.offsetCells(isLive ? 0 : offsetMin);
+}
+
+/* ---------------- Glance mode ---------------- */
+
+function openGlance() {
+  document.querySelectorAll('.panel').forEach((p) => { p.hidden = true; });
+  const g = document.getElementById('glance');
+  g.hidden = false;
+  g.onclick = () => { g.hidden = true; };
+  updateGlance();
+}
+
+function updateGlance() {
+  const g = document.getElementById('glance');
+  if (g.hidden) return;
+  const user = geo.getLocation();
+  const near = user
+    ? analyses.filter((a) => a.userRel).sort((x, y) => x.userRel.distKm - y.userRel.distKm)[0]
+    : analyses[0];
+  const rating = near ? near.threatRating : { id: 'verylow', label: 'Quiet' };
+  const colors = { verylow: '#64748b', low: '#34d399', elev: '#fbbf24', high: '#fb923c', extreme: '#ef4444' };
+  const alerts = sources.getState().alerts;
+  const torCount = alerts.filter((a) => a.kind === 'tor-warning').length;
+
+  g.innerHTML = `
+    <div class="glance-rating" style="background:${colors[rating.id]}">${rating.label.toUpperCase()}</div>
+    <div class="glance-main">${near && near.userRel
+      ? `${escapeHud(fmtDistance(near.userRel.distKm, settings.units))}<div class="glance-sub">to nearest storm (${near.severeScore}/100)${near.userRel.etaMin != null ? ` · ~${near.userRel.etaMin} min out` : ''}</div>`
+      : near
+        ? `${near.severeScore}/100<div class="glance-sub">strongest tracked storm</div>`
+        : `ALL QUIET<div class="glance-sub">no storms being tracked</div>`}</div>
+    <div class="glance-alerts">${torCount ? `🌪 ${torCount} tornado warning${torCount === 1 ? '' : 's'} active` : 'No tornado warnings active'}</div>
+    <div class="glance-foot">${new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })} · tap anywhere to close</div>`;
+}
+
+/* ---------------- Tornado history (SPC climatology archive) ---------------- */
+
+let torHistoryLoaded = false;
+
+async function loadTornadoHistory() {
+  document.querySelectorAll('.panel').forEach((p) => { p.hidden = true; });
+  if (torHistoryLoaded) {
+    mapView.clearTornadoHistory();
+    torHistoryLoaded = false;
+    showToast('Tornado history layer removed.');
+    return;
+  }
+  showToast('Downloading the SPC tornado archive (~10 MB, one-time)…', { ttlMs: 10_000 });
+  const candidates = [
+    'https://www.spc.noaa.gov/wcm/data/1950-2024_actual_tornadoes.csv',
+    'https://www.spc.noaa.gov/wcm/data/1950-2023_actual_tornadoes.csv',
+  ];
+  let text = null;
+  for (const url of candidates) {
+    try {
+      const res = await fetch(url);
+      if (res.ok) { text = await res.text(); break; }
+    } catch { /* try next */ }
+  }
+  if (!text) {
+    showToast('Couldn\'t download the archive — SPC may be blocking cross-site requests right now.', { level: 'warn' });
+    return;
+  }
+  const c = mapView.map.getCenter();
+  const rows = text.split('\n');
+  const header = rows[0].split(',');
+  const col = (name) => header.indexOf(name);
+  const [iMag, iSlat, iSlon, iElat, iElon, iDate, iFat] =
+    ['mag', 'slat', 'slon', 'elat', 'elon', 'date', 'fat'].map(col);
+  const tracks = [];
+  for (let i = 1; i < rows.length && tracks.length < 3000; i++) {
+    const f = rows[i].split(',');
+    const slat = Number(f[iSlat]), slon = Number(f[iSlon]);
+    if (!slat || !slon) continue;
+    // Keep tornadoes within ~200 km of the current map centre.
+    if (Math.abs(slat - c.lat) > 2 || Math.abs(slon - c.lng) > 2.5) continue;
+    tracks.push({
+      mag: Number(f[iMag]), slat, slon,
+      elat: Number(f[iElat]) || null, elon: Number(f[iElon]) || null,
+      date: f[iDate], fat: Number(f[iFat]) || 0,
+    });
+  }
+  mapView.renderTornadoHistory(tracks);
+  torHistoryLoaded = true;
+  showToast(`${tracks.length} historical tornadoes near this view (since 1950). Colors = intensity; tap a track for details. Load again to remove.`, { ttlMs: 12_000 });
 }
 
 /** Dim red night theme (Settings → Radar → Night mode). */
@@ -586,21 +683,30 @@ function wireChrome() {
   document.getElementById('btn-menu').addEventListener('click', () => {
     const layersPanel = document.getElementById('panel-layers');
     if (layersPanel.hidden) {
-      renderLayers({ onChanged: () => mapView.syncLayerVisibility() });
+      renderLayers({
+        onChanged: () => mapView.syncLayerVisibility(),
+        onGlance: openGlance,
+        onTornadoHistory: loadTornadoHistory,
+      });
       showPanel('layers');
     } else {
       showPanel(null);
     }
+  });
+  document.getElementById('btn-snapshot').addEventListener('click', () => {
+    captureMap(mapView.map, radar, visibleAnalyses(geo.getLocation()), geo.getLocation());
   });
 
   const rerenderSettings = () => renderSettings({
     onChanged: (path) => {
       if (path === 'favorites.add') {
         const c = mapView.map.getCenter();
-        const name = `Spot ${settings.favorites.length + 1} (${c.lat.toFixed(1)}, ${c.lng.toFixed(1)})`;
-        settings.favorites.push({ name, lat: c.lat, lon: c.lng });
+        const suggested = `Spot ${settings.favorites.length + 1}`;
+        const name = (window.prompt('Name this view (e.g. Home, Target area):', suggested) || suggested).slice(0, 40);
+        // Saved views remember the zoom too — one-tap jumps restore the exact framing.
+        settings.favorites.push({ name, lat: c.lat, lon: c.lng, zoom: mapView.map.getZoom() });
         setSetting('favorites', settings.favorites);
-        showToast(`Saved ${name} to favorites. The alert engine now watches it too.`);
+        showToast(`Saved “${name}”. Tap it in Settings to jump back; the alert engine watches it too.`);
         rerenderSettings();
         return;
       }
@@ -608,12 +714,18 @@ function wireChrome() {
         const fav = settings.favorites[Number(path.split('.')[2])];
         if (fav) {
           showPanel(null);
-          mapView.map.flyTo([fav.lat, fav.lon], Math.max(mapView.map.getZoom(), 8), { duration: 0.8 });
+          mapView.map.flyTo([fav.lat, fav.lon], fav.zoom ?? Math.max(mapView.map.getZoom(), 8), { duration: 0.8 });
         }
         return;
       }
       if (path === 'journal.refresh') { rerenderSettings(); return; }
       if (path === 'about.open') { renderAbout(); showPanel('about'); return; }
+      if (path === 'chase.replay') {
+        showPanel(null);
+        mapView.showChaseTrack(getTrack(), getNotes());
+        showToast('Chase-day replay drawn — your route in blue, 📝 marks your notes. Load again from Settings to redraw.');
+        return;
+      }
       if (path === 'nightMode') applyTheme();
       if (path === 'chaseMode') applyChaseMode();
       if (path === 'dataSaver') {
