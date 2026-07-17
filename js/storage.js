@@ -14,6 +14,8 @@ export const DEFAULT_SETTINGS = {
   radarSmoothing: true,         // CSS-level smoothing of radar tiles
   nightMode: false,             // dim red theme for night driving
   chaseMode: false,             // chaser HUD + screen wake lock
+  followMe: false,              // auto-center the map on GPS updates
+  voiceAlerts: false,           // speak dangerous alerts (works over CarPlay/BT audio)
   colorTable: 'classic',        // 'classic' | 'enhanced' | 'grayscale'
   radarSite: 'auto',            // 'auto' (nearest) or a WSR-88D id like 'KTLX'
   monitorRadiusKm: CONFIG.analysis.monitorRadiusKm,

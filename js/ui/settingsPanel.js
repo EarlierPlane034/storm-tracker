@@ -57,6 +57,8 @@ export function renderSettings({ onChanged, onRequestNotifications, onRouteCheck
 
   section('Storm chasing');
   toggleRow('Chase mode', 'On-map HUD with bearing/ETA to your target storm, your speed, and keeps the screen awake', 'chaseMode');
+  toggleRow('Follow me', 'Auto-center the map on your position as you drive', 'followMe');
+  toggleRow('Spoken alerts', 'Speak dangerous alerts aloud — plays through CarPlay/Bluetooth car audio', 'voiceAlerts');
 
   section('AI analyst');
   selectRow('AI sensitivity', 'How readily scores climb', 'aiSensitivity',

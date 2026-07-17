@@ -83,7 +83,8 @@
       <button class="tab active" data-panel="map">Radar</button>
       <button class="tab" data-panel="storms">Storms</button>
       <button class="tab" data-panel="alerts">Alerts<span class="tab-badge" id="alert-badge" hidden></span></button>
-      <button class="tab" data-panel="ai">AI Analyst</button>
+      <button class="tab" data-panel="reports">Reports</button>
+      <button class="tab" data-panel="ai">AI</button>
       <button class="tab" data-panel="settings">Settings</button>
     </nav>
 
@@ -96,6 +97,11 @@
     <section class="panel" id="panel-alerts" hidden>
       <header class="panel-head"><h2>Active Alerts</h2><button class="icon-btn panel-close">&times;</button></header>
       <div class="panel-body" id="alert-list"></div>
+    </section>
+
+    <section class="panel" id="panel-reports" hidden>
+      <header class="panel-head"><h2>Storm Reports</h2><button class="icon-btn panel-close">&times;</button></header>
+      <div class="panel-body" id="reports-list"></div>
     </section>
 
     <section class="panel" id="panel-ai" hidden>

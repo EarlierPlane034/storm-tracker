@@ -75,6 +75,32 @@ export default {
         return json({ ok: true });
       }
 
+      // Community spotter reports (this household's own database).
+      if (url.pathname === '/report' && req.method === 'POST') {
+        const body = await req.json();
+        const type = String(body?.type || '').slice(0, 30);
+        const text = String(body?.text || '').slice(0, 200);
+        if (!type || body?.lat == null || body?.lon == null) {
+          return json({ error: 'type, lat, lon required' }, 400);
+        }
+        const key = `report:${Date.now()}:${Math.random().toString(36).slice(2, 8)}`;
+        await env.SUBS.put(key, JSON.stringify({
+          type, text, lat: num(body.lat), lon: num(body.lon), t: Date.now(),
+        }), { expirationTtl: 24 * 3600 });
+        return json({ ok: true });
+      }
+
+      if (url.pathname === '/reports' && req.method === 'GET') {
+        const list = await env.SUBS.list({ prefix: 'report:', limit: 100 });
+        const reports = [];
+        for (const k of list.keys) {
+          const raw = await env.SUBS.get(k.name);
+          if (raw) { try { reports.push(JSON.parse(raw)); } catch { /* skip */ } }
+        }
+        reports.sort((a, b) => b.t - a.t);
+        return json({ reports });
+      }
+
       if (url.pathname === '/' && req.method === 'GET') {
         const list = await env.SUBS.list({ prefix: 'sub:' });
         return json({ ok: true, service: 'StormLens push worker', subscribers: list.keys.length });
