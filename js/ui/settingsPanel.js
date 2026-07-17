@@ -145,6 +145,9 @@ export function renderSettings({ onChanged, onRequestNotifications, onRouteCheck
   toggleRow('Tornado chance rising', null, 'alertsEnabled.torChanceRising');
   toggleRow('Rapid intensification', null, 'alertsEnabled.rapidIntensification');
   toggleRow('Storm approaching me', null, 'alertsEnabled.approachingStorm');
+  selectRow('Alert language', 'Alert titles, shelter instructions and spoken alerts', 'language',
+    [['en', 'English'], ['es', 'Español']]);
+  toggleRow('Haptic alerts', 'Vibration patterns by severity (Android only — iOS blocks web vibration)', 'hapticAlerts');
 
   section('Favorite locations');
   host.appendChild(el('div', { class: 'muted', style: 'font-size:11px;margin:0 4px 4px', text: 'Tap a favorite to fly the map there. Favorites are also watched by the alert engine — warnings and strong rotation near them will notify you.' }));
@@ -185,7 +188,10 @@ export function renderSettings({ onChanged, onRequestNotifications, onRouteCheck
   host.appendChild(el('div', { class: 'muted', style: 'font-size:11px;margin:0 4px', text: 'Draws the driving route from your location (or the map centre) and reports which tracked storms pass near it.' }));
 
   section('Chase journal');
-  renderJournalSection(host, { onChanged: () => onChanged('journal.refresh') });
+  renderJournalSection(host, {
+    onChanged: () => onChanged('journal.refresh'),
+    onShowTrack: () => onChanged('chase.replay'),
+  });
 
   section('Data feeds (last update)');
   const feeds = [

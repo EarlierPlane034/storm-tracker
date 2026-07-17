@@ -613,6 +613,46 @@ body.night .map-wrap::after {
 .hud-coords { text-decoration: underline dotted; cursor: pointer; }
 .chase-hud[hidden] { display: none; }
 
+/* ---------- Time-of-arrival labels on storm tracks ---------- */
+.toa-label {
+  font: 700 9px var(--mono);
+  color: var(--text);
+  background: var(--bg-overlay);
+  border: 1.5px solid;
+  border-radius: 6px;
+  padding: 1px 4px;
+  white-space: nowrap;
+}
+
+/* ---------- Glance mode ---------- */
+.glance {
+  position: fixed;
+  inset: 0;
+  z-index: 3000;
+  background: var(--bg);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4vh;
+  text-align: center;
+  padding: 5vw;
+  cursor: pointer;
+}
+.glance[hidden] { display: none; }
+.glance-rating {
+  font-size: 8vw;
+  font-weight: 900;
+  letter-spacing: 0.05em;
+  color: #04121a;
+  padding: 1.5vh 6vw;
+  border-radius: 18px;
+}
+.glance-main { font-size: 14vw; font-weight: 800; font-family: var(--mono); line-height: 1.1; }
+.glance-sub { font-size: 4.2vw; font-weight: 600; color: var(--text-dim); font-family: var(--font); margin-top: 1vh; }
+.glance-alerts { font-size: 5vw; font-weight: 700; }
+.glance-foot { font-size: 3.2vw; color: var(--text-dim); }
+
 /* ---------- About screen ---------- */
 .about-hero { display: flex; align-items: center; gap: 14px; padding: 8px 2px 12px; }
 .about-icon { width: 64px; height: 64px; border-radius: 15px; box-shadow: 0 4px 14px rgba(0,0,0,0.45); }

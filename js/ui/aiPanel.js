@@ -21,7 +21,7 @@ const SPC_NAMES = {
 
 export function renderAiPanel(analyses, env, alerts, user, {
   onSelect, hiddenCount = 0, outlook = [], week = [], outlookDay2 = [], outlookDay3 = [],
-  forecast = { daily: [], hourly: [], afd: null }, onOpenChat,
+  forecast = { daily: [], hourly: [], afd: null }, onOpenChat, onShowTarget,
 }) {
   const host = document.getElementById('ai-analysis');
   host.textContent = '';
@@ -180,6 +180,10 @@ export function renderAiPanel(analyses, env, alerts, user, {
     host.appendChild(card);
   }
 
+  // ---- Multi-day chase target planner -----------------------------------------
+  const planner = buildPlannerCard(outlookDay2, outlookDay3, user, onShowTarget);
+  if (planner) host.appendChild(planner);
+
   // ---- SPC Mesoanalysis viewer (chaser staple) --------------------------------
   host.appendChild(buildMesoanalysisCard());
 
@@ -190,6 +194,55 @@ export function renderAiPanel(analyses, env, alerts, user, {
     }));
   }
   host.appendChild(el('div', { class: 'ai-disclaimer', text: CONFIG.disclaimer }));
+}
+
+/**
+ * Multi-day chase target planner: for tomorrow and the day after, find
+ * the highest SPC risk polygon, compute its centroid, and offer to drop
+ * a target marker on the map with distance from the user.
+ */
+function buildPlannerCard(day2, day3, user, onShowTarget) {
+  const targets = [];
+  for (const [dayNum, feats] of [[2, day2], [3, day3]]) {
+    let best = null, bestRank = 0; // require at least MRGL (rank 1)
+    for (const f of feats || []) {
+      const rank = SPC_RANK.indexOf(f.properties?.LABEL);
+      if (rank > bestRank && f.geometry) { bestRank = rank; best = f; }
+    }
+    if (!best) continue;
+    const c = centroidOf(best.geometry);
+    if (!c) continue;
+    targets.push({ dayNum, cat: SPC_NAMES[SPC_RANK[bestRank]], lat: c[0], lon: c[1] });
+  }
+  if (!targets.length) return null;
+
+  const card = el('div', { class: 'card ai-block' });
+  card.appendChild(el('h4', { text: '🎯 Chase target planner (SPC days 2–3)' }));
+  for (const t of targets) {
+    const when = new Date(Date.now() + (t.dayNum - 1) * 86400e3)
+      .toLocaleDateString([], { weekday: 'long' });
+    const dist = user ? ` — ${fmtDistance(
+      Math.hypot((t.lat - user.lat) * 111, (t.lon - user.lon) * 111 * Math.cos(user.lat * Math.PI / 180)),
+      settings.units)} from you` : '';
+    card.appendChild(el('div', { class: 'setting-row', style: 'padding:8px 0' }, [
+      el('label', { html: `<strong>${when}</strong>: ${t.cat} risk centered near ${t.lat.toFixed(1)}, ${t.lon.toFixed(1)}${dist}` }),
+      onShowTarget ? el('button', {
+        class: 'product-btn', text: 'Map',
+        onclick: () => onShowTarget(t),
+      }) : null,
+    ]));
+  }
+  card.appendChild(el('div', { class: 'muted', style: 'font-size:10.5px', text: 'The centroid of the highest risk area — a starting point, not a precise target. Re-plan each morning from the Day-1 outlook and mesoanalysis.' }));
+  return card;
+}
+
+function centroidOf(geom) {
+  const ring = geom.type === 'Polygon' ? geom.coordinates[0]
+    : geom.type === 'MultiPolygon' ? geom.coordinates[0]?.[0] : null;
+  if (!ring?.length) return null;
+  let lat = 0, lon = 0;
+  for (const [x, y] of ring) { lon += x; lat += y; }
+  return [lat / ring.length, lon / ring.length];
 }
 
 /**

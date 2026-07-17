@@ -43,6 +43,54 @@ function once(key, fn) {
   fn();
 }
 
+/* ---- Alert history: every delivered event, persisted for day review ---- */
+const LOG_KEY = 'stormlens.alertlog.v1';
+
+export function getAlertLog() {
+  try { return JSON.parse(localStorage.getItem(LOG_KEY)) || []; } catch { return []; }
+}
+
+export function clearAlertLog() {
+  try { localStorage.removeItem(LOG_KEY); } catch { /* ok */ }
+}
+
+function logEvent(title, body, level) {
+  try {
+    const log = getAlertLog();
+    log.push({ t: Date.now(), title, body: body.slice(0, 200), level });
+    localStorage.setItem(LOG_KEY, JSON.stringify(log.slice(-300)));
+  } catch { /* storage full — history is best-effort */ }
+}
+
+/* ---- Spanish safety strings (alert titles + shelter instruction) ---- */
+const ES = {
+  '🌪 Tornado Warning': '🌪 Aviso de Tornado',
+  '🚨 TORNADO EMERGENCY': '🚨 EMERGENCIA DE TORNADO',
+  '⛈ Severe Thunderstorm Warning': '⛈ Aviso de Tormenta Severa',
+  '💧 Flash Flood Warning': '💧 Aviso de Inundación Repentina',
+  'Tornado Watch': 'Vigilancia de Tornado',
+  'Severe Thunderstorm Watch': 'Vigilancia de Tormenta Severa',
+  '🌪 Tornado Vortex Signature': '🌪 Firma de Vórtice de Tornado',
+  'Significant rotation detected': 'Rotación significativa detectada',
+  'Tornado chance increasing': 'Probabilidad de tornado en aumento',
+  'Rapid intensification': 'Intensificación rápida',
+  'Storm approaching your location': 'Tormenta acercándose a su ubicación',
+  'Take shelter guidance from NWS immediately.': '¡Refúgiese inmediatamente según las indicaciones del NWS!',
+};
+
+function localize(s) {
+  if (settings.language !== 'es') return s;
+  let out = ES[s] ?? s;
+  for (const [en, es] of Object.entries(ES)) out = out.replace(en, es);
+  return out;
+}
+
+/* ---- Haptic patterns (navigator.vibrate — Android only; iOS blocks it) ---- */
+function buzz(level) {
+  if (!settings.hapticAlerts || !navigator.vibrate) return;
+  navigator.vibrate(level === 'danger' ? [400, 120, 400, 120, 400] : [200, 100, 200]);
+}
+
 let speaking = 0;
 
 /**
@@ -55,6 +103,7 @@ function speak(text) {
   if (speaking >= 2) return; // don't queue-flood during outbreaks
   const u = new SpeechSynthesisUtterance(text.replace(/[🌪⛈💧🚨📍☀️🌙]/g, ''));
   u.rate = 0.95;
+  u.lang = settings.language === 'es' ? 'es-US' : 'en-US';
   speaking++;
   u.onend = () => { speaking = Math.max(0, speaking - 1); };
   u.onerror = u.onend;
@@ -62,6 +111,10 @@ function speak(text) {
 }
 
 function deliver(title, body, level = 'warn') {
+  title = localize(title);
+  body = localize(body);
+  logEvent(title, body, level);
+  buzz(level);
   showToast(`${title} — ${body}`, { level, ttlMs: 12_000 });
   if (level === 'danger') speak(`${title}. ${body}`);
   if (settings.notifySensitivity === 'off') return;
