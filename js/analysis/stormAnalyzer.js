@@ -21,6 +21,16 @@ import {
   rotationPersistence, isRapidlyIntensifying, trendOf,
 } from './trends.js';
 import { analyzeTornadoPotential } from './tornadoIntelligence.js';
+import {
+  calculateEnhancedTornadoScore,
+  calculateEnhancedHailScore,
+  calculateEnhancedWindScore,
+  calculateEnhancedLightningScore,
+  assessMesocycloneStrength,
+  detectRapidIntensification,
+} from '../ai/stormScoringV2.js';
+import { detectMesocyclones, trackMesocyclones } from '../radar/mesocycloneDetector.js';
+import { detectStormMergers, detectStormIntensification, detectRotationDevelopment } from '../alerts/stormEvolution.js';
 
 /** Sensitivity multipliers applied to final scores. */
 const SENSITIVITY = { conservative: 0.85, balanced: 1.0, aggressive: 1.15 };
@@ -52,6 +62,20 @@ export function analyzeStorms(cells, environment, alerts, reports, user) {
 
   results.sort((a, b) => b.severeScore - a.severeScore);
   results.forEach((r, i) => { r.rank = i + 1; });
+
+  // === NEW: Detect storm evolution events ===
+  // Merger detection (storms converging)
+  const mergers = detectStormMergers(results);
+  results.mergers = mergers;
+
+  // Intensification & rotation development per storm
+  results.forEach(storm => {
+    const intensification = detectStormIntensification(storm);
+    if (intensification) {
+      storm.evolutionEvent = intensification;
+    }
+  });
+
   return results;
 }
 
@@ -67,6 +91,11 @@ function analyzeCell(cell, env, alerts, reports, user, allCells) {
 
   // ---------- Rotation score ------------------------------------------------
   let rotation = 0;
+
+  // === NEW: Detect and track mesocyclones ===
+  const mesocyclones = detectMesocyclones(cell);
+  const trackedMesos = mesocyclones.length > 0 ? trackMesocyclones(cell.id, mesocyclones) : [];
+
   if (cell.meso > 0) {
     rotation += scaleTo(cell.meso, 0, 12, 60);
     factors.push({ hazard: 'rotation', weight: rotation, text: `the ${cell.site} radar is detecting a mesocyclone (strength rank ${cell.meso})` });
@@ -224,6 +253,7 @@ function analyzeCell(cell, env, alerts, reports, user, allCells) {
     nearbyReports,
     userRel,
     threatRating: ratingBand(severe),
+    mesocyclones: trackedMesos,
   };
 }
 
