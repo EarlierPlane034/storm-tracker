@@ -108,9 +108,26 @@ html, body {
   background: transparent !important;
 }
 
-/* Remove any black backgrounds from Leaflet canvases */
-.leaflet-canvas-container canvas {
+/* Remove any black backgrounds from Leaflet canvases and divs */
+.leaflet-canvas-container,
+.leaflet-canvas-container canvas,
+.leaflet-layer,
+.leaflet-tile,
+div[style*="background: black"],
+div[style*="background: #000000"],
+div[style*="background: rgb(0,0,0)"],
+div[style*="background-color: black"],
+div[style*="background-color: #000000"],
+div[style*="background-color: rgb(0,0,0)"] {
   background: transparent !important;
+}
+
+/* Force hide any actual black boxes */
+div[style*="background: black"],
+div[style*="background: #000"],
+div[style*="background: rgb(0, 0, 0)"],
+canvas[style*="background: black"] {
+  display: none !important;
 }
 
 .leaflet-control-attribution {
