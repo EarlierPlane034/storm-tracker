@@ -682,3 +682,29 @@ body.night .map-wrap::after {
   .tab { padding: 8px 2px; }
   .anim-bar { bottom: 8px; }
 }
+
+/* ---------- Storm Comparison Button ---------- */
+.storm-compare-btn {
+  background: rgba(0, 153, 255, 0.15);
+  border: 1px solid rgba(0, 153, 255, 0.4);
+  color: #0099ff;
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.storm-compare-btn:hover {
+  background: rgba(0, 153, 255, 0.25);
+  border-color: rgba(0, 153, 255, 0.6);
+  box-shadow: 0 0 6px rgba(0, 153, 255, 0.4);
+}
+
+.storm-compare-btn:active {
+  background: rgba(0, 153, 255, 0.35);
+  transform: scale(0.95);
+}

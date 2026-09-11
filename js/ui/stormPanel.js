@@ -9,6 +9,7 @@ import { stormSummary, tornadoStatement, changeExplanation, technicalReadout } f
 import { attachTrendInteraction, SERIES_COLORS } from './trendChart.js';
 import { getState } from '../api/sources.js';
 import { showToast } from './toasts.js';
+import { selectStormForComparison } from './stormComparison.js';
 
 export const scoreClass = (s) =>
   s >= 81 ? 'score-extreme' : s >= 61 ? 'score-high' : s >= 41 ? 'score-elev' : s >= 21 ? 'score-low' : 'score-verylow';
@@ -46,10 +47,24 @@ export function renderStormList(analyses, { onSelect, hiddenCount = 0 }) {
     ]));
     const trendArrow = a.trend.label === 'strengthening' ? '▲' : a.trend.label === 'weakening' ? '▼' : '—';
     const trendCls = a.trend.label === 'strengthening' ? 'trend-up' : a.trend.label === 'weakening' ? 'trend-down' : 'trend-flat';
-    head.appendChild(el('div', { style: 'display:flex;align-items:center;gap:8px' }, [
-      el('span', { class: `trend-arrow ${trendCls}`, text: trendArrow }),
-      el('span', { class: `score-pill ${scoreClass(a.severeScore)}`, text: String(a.severeScore) }),
-    ]));
+
+    const scoreSection = el('div', { style: 'display:flex;align-items:center;gap:8px' });
+    scoreSection.appendChild(el('span', { class: `trend-arrow ${trendCls}`, text: trendArrow }));
+    scoreSection.appendChild(el('span', { class: `score-pill ${scoreClass(a.severeScore)}`, text: String(a.severeScore) }));
+
+    // === NEW: Compare button ===
+    const compareBtn = el('button', {
+      class: 'storm-compare-btn',
+      text: '⚖️',
+      title: 'Add to comparison'
+    });
+    compareBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      selectStormForComparison(a);
+    });
+    scoreSection.appendChild(compareBtn);
+
+    head.appendChild(scoreSection);
     card.appendChild(head);
 
     const risks = el('div', { class: 'risk-row' });
