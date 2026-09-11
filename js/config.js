@@ -22,9 +22,9 @@ export const CONFIG = {
     spc: 'https://www.spc.noaa.gov/products/outlook',
     // Open-Meteo: HRRR/GFS-derived environmental parameters (CAPE, shear...).
     openMeteo: 'https://api.open-meteo.com/v1',
-    // Dark basemap (CartoDB) + reference labels.
-    basemapDark: 'https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png',
-    basemapLabels: 'https://{s}.basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}{r}.png',
+    // USGS Topo basemap (free, no API key) + OpenStreetMap labels.
+    basemapDark: 'https://basemap.nationalmap.gov/arcgis/rest/services/USGSTopo/MapServer/tile/{z}/{y}/{x}',
+    basemapLabels: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
     basemapSatellite: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
   },
 
