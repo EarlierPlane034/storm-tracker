@@ -24,6 +24,7 @@ import { StormDatabase, StormReplay } from '../data/stormDatabase.js';
 import { StormStructureVisualizer, MultiStormComparison, ForecastGraph } from '../ui/advancedCharting.js';
 import { RadarPatternTutorial, StormQuiz, SpotterCertification, StormIdentificationGame } from '../education/stormTraining.js';
 import { el } from '../utils.js';
+import { getLocation } from '../location.js';
 
 export class Week3FeaturesPanel {
   constructor(containerId, map) {
@@ -368,14 +369,19 @@ export class Week3FeaturesPanel {
       container.innerHTML = '<div class="muted">Select a storm from the map for chase guidance</div>';
       return;
     }
+    const user = getLocation();
+    if (!user) {
+      container.innerHTML = '<div class="muted">Enable location (⌖ in the top bar) for chase routing — distances and directions need to know where you are.</div>';
+      return;
+    }
 
     const route = this.chaseRouter.calculateInterceptRoute(
-      37.5, -96.5, this.selectedStorm.lat, this.selectedStorm.lon, this.selectedStorm
+      user.lat, user.lon, this.selectedStorm.lat, this.selectedStorm.lon, this.selectedStorm
     );
-    const shelters = this.safeHavenFinder.findNearestShelter(37.5, -96.5, 20);
+    const shelters = this.safeHavenFinder.findNearestShelter(user.lat, user.lon, 20);
     // severeScore/tornado live on the analysis, not the bare cell.
     const decision = ChaseDecisionScore.score(
-      { lat: 37.5, lon: -96.5 }, this.selectedAnalyses[0] || this.selectedStorm, {}, route
+      user, this.selectedAnalyses[0] || this.selectedStorm, {}, route
     );
 
     container.innerHTML = `
@@ -383,7 +389,7 @@ export class Week3FeaturesPanel {
         <div class="chase-card">
           <h3>📍 Route to Intercept</h3>
           <div class="chase-info">
-            <div>Distance: ${route.estimatedDistanceKm.toFixed(1)} km</div>
+            <div>Distance: ${route.estimatedDistanceKm.toFixed(1)} km (~${route.estimatedTimeMin} min drive)</div>
             <div>Coordinates: ${route.to.lat.toFixed(3)}, ${route.to.lon.toFixed(3)}</div>
           </div>
         </div>

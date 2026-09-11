@@ -61,6 +61,7 @@ export function renderSettings({ onChanged, onRequestNotifications, onRouteCheck
   toggleRow('High contrast', 'Brighter text and borders for bright-sunlight readability', 'highContrast');
 
   section('Storm chasing');
+  toggleRow('Intercept guidance', 'Map pin + route showing where the nearest dangerous storm is headed and how to get there', 'interceptGuidance');
   toggleRow('Chase mode', 'On-map HUD with bearing/ETA to your target storm, your speed, and keeps the screen awake', 'chaseMode');
   toggleRow('Follow me', 'Auto-center the map on your position as you drive', 'followMe');
   toggleRow('Spoken alerts', 'Speak dangerous alerts aloud — plays through CarPlay/Bluetooth car audio', 'voiceAlerts');

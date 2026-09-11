@@ -65,6 +65,7 @@ export const DEFAULT_SETTINGS = {
   },
   favorites: [],                // [{name, lat, lon}]
   bookmarkedStormIds: [],        // storm cell IDs pinned during this session/day
+  interceptGuidance: true,       // map pin + route to the nearest dangerous storm's projected path
   pushServerUrl: '',            // user's own Cloudflare push worker URL
   pushEnabled: false,           // background push registered
   showTechnical: false,         // AI: include technical explanation

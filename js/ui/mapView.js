@@ -240,6 +240,56 @@ export class MapView {
   }
 
   /**
+   * Drive-to guidance for the single most dangerous nearby storm: a pin at
+   * where the storm is projected to be, a dashed line from your position,
+   * and a popup explaining the reasoning (speed/direction/ETA). Uses the
+   * same destinationPoint() haversine math as the projected storm tracks —
+   * NOT the separate (and buggy — hardcoded map-center "user" location,
+   * a `.bearing` field that doesn't exist on storm cells, and missing the
+   * cos(latitude) longitude-scaling term) calculateInterceptRoute() in
+   * chase/chaseSafety.js's ChaseRouter.
+   */
+  renderInterceptGuidance(user, storm, minutesAhead = 20) {
+    this.clearInterceptGuidance();
+    if (!user || !storm) return;
+    const c = storm.cell;
+    if (c.moveDirDeg == null || !c.moveSpeedKts) return; // no motion vector — nothing to project
+
+    const distKm = (c.moveSpeedKts * 1.852 * minutesAhead) / 60;
+    const point = destinationPoint(c.lat, c.lon, c.moveDirDeg, distKm);
+    const distToPointKm = haversineKm(user.lat, user.lon, point[0], point[1]);
+    const driveMin = Math.round((distToPointKm / 88) * 60); // ~55 mph average, matches the long-press measure tool
+    const headingBrg = bearingDeg(user.lat, user.lon, point[0], point[1]);
+
+    this._interceptGroup = L.layerGroup().addTo(this.map);
+    this._interceptGroup.addLayer(L.polyline([[user.lat, user.lon], point], {
+      color: '#fbbf24', weight: 3, opacity: 0.85, dashArray: '8 6', interactive: false,
+    }));
+    const marker = L.marker(point, {
+      icon: L.divIcon({
+        className: '',
+        html: '<div style="font-size:28px;filter:drop-shadow(0 0 4px rgba(0,0,0,0.9))">🎯</div>',
+        iconSize: [30, 30], iconAnchor: [15, 26],
+      }),
+      zIndexOffset: 900,
+    });
+    marker.bindPopup(
+      `<strong>🎯 Suggested intercept point</strong><br>` +
+      `${storm.type.label} (score ${storm.severeScore}/100) moving ${compassDir(c.moveDirDeg)} at ` +
+      `${fmtSpeed(c.moveSpeedKts, settings.units)} — projected here in ~${minutesAhead} min.<br>` +
+      `Head <strong>${compassDir(headingBrg)}</strong>, ${fmtDistance(distToPointKm, settings.units)} ` +
+      `(~${driveMin} min drive).<br>` +
+      `<em>Position to the side of its path (typically SE of a right-moving storm) — ` +
+      `never drive directly into the core. Unofficial guidance.</em>`
+    );
+    this._interceptGroup.addLayer(marker);
+  }
+
+  clearInterceptGuidance() {
+    if (this._interceptGroup) { this.map.removeLayer(this._interceptGroup); this._interceptGroup = null; }
+  }
+
+  /**
    * Time-matched loop playback: slide every storm marker back along its
    * (reversed) motion vector to where it was `offsetMin` minutes ago, so
    * markers track the radar history frame being shown.

@@ -327,6 +327,7 @@ const reanalyze = debounce(() => {
 
   // Map + always-on chrome first; list panels only if actually visible.
   mapView.renderCells(visibleAnalyses(user));
+  updateInterceptGuidance(user);
   markPanelsStale(['storms', 'ai']);
   if (!document.getElementById('glance').hidden) updateGlance();
   updateChaseHud(user);
@@ -377,6 +378,18 @@ function updateAlertBadge(alerts) {
   const count = alerts.filter((a) => a.kind.endsWith('warning')).length;
   badge.hidden = count === 0;
   badge.textContent = String(count);
+}
+
+/** Drive-to pin for the single most dangerous nearby storm (score >= 41 —
+ * "elevated" or worse), while there's an actual GPS fix and the user
+ * hasn't turned it off in Settings. Storms with no known motion vector
+ * are skipped inside renderInterceptGuidance() rather than here, so a
+ * weaker/idle storm doesn't leave a stale pin on screen. */
+function updateInterceptGuidance(user) {
+  if (!user || !settings.interceptGuidance) { mapView.clearInterceptGuidance(); return; }
+  const target = analyses.find((a) => a.userRel && a.userRel.distKm <= settings.monitorRadiusKm && a.severeScore >= 41);
+  if (!target) { mapView.clearInterceptGuidance(); return; }
+  mapView.renderInterceptGuidance(user, target);
 }
 
 function updateGpsChip(user) {

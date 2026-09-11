@@ -13,21 +13,34 @@ export class ChaseRouter {
   }
 
   /**
-   * Calculate safest intercept route
+   * Calculate safest intercept route: where the storm will be, not just
+   * an arbitrary point "ahead" of it — driven by its real motion vector.
    */
   calculateInterceptRoute(userLat, userLon, stormLat, stormLon, stormMovement) {
-    // Simple intercept calculation: intercept point ahead of storm
-    const interceptDistance = 30; // km ahead
-    const moveDeg = stormMovement.bearing || 270;
+    const interceptDistanceKm = 30; // project the storm's own path this far forward
+    // Storm cells carry moveDirDeg/moveSpeedKts, not `.bearing` — reading
+    // the wrong field silently defaulted every intercept to due-west.
+    const moveDeg = stormMovement.moveDirDeg ?? 270;
 
-    const interceptLat = stormLat + (Math.cos(moveDeg * Math.PI / 180) * interceptDistance / 111);
-    const interceptLon = stormLon + (Math.sin(moveDeg * Math.PI / 180) * interceptDistance / 111);
+    // destinationPoint-equivalent great-circle projection (bearing math on
+    // a flat lat/lon grid needs the cos(latitude) term on the longitude
+    // component, or it's badly wrong away from the equator).
+    const R = 6371;
+    const rad = Math.PI / 180;
+    const lat1 = stormLat * rad, lon1 = stormLon * rad, brg = moveDeg * rad;
+    const angDist = interceptDistanceKm / R;
+    const lat2 = Math.asin(Math.sin(lat1) * Math.cos(angDist) + Math.cos(lat1) * Math.sin(angDist) * Math.cos(brg));
+    const lon2 = lon1 + Math.atan2(
+      Math.sin(brg) * Math.sin(angDist) * Math.cos(lat1),
+      Math.cos(angDist) - Math.sin(lat1) * Math.sin(lat2));
+    const interceptLat = lat2 / rad, interceptLon = lon2 / rad;
 
+    const estimatedDistanceKm = this.haversine(userLat, userLon, interceptLat, interceptLon);
     return {
       from: { lat: userLat, lon: userLon },
       to: { lat: interceptLat, lon: interceptLon },
-      estimatedDistanceKm: this.haversine(userLat, userLon, interceptLat, interceptLon),
-      estimatedTimeMin: 0, // Would calculate with road routing API
+      estimatedDistanceKm,
+      estimatedTimeMin: Math.round((estimatedDistanceKm / 88) * 60), // ~55 mph average, matches the rest of the app
     };
   }
 
