@@ -40,10 +40,7 @@ export class MapView {
       zoomDelta: 1,
       inertia: true,
       fadeAnimation: false,       // tile cross-fade costs paint time on mobile
-      preferCanvas: true,
-      // One shared canvas renderer with generous padding so pans/zooms
-      // reuse the already-drawn area instead of redrawing every frame.
-      renderer: L.canvas({ padding: 0.5 }),
+      preferCanvas: false,
     });
 
     // Tile layers only fetch when the gesture settles — never mid-pinch.
