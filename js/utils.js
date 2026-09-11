@@ -58,6 +58,11 @@ export function destinationPoint(lat, lon, bearing, distKm) {
   return [toDeg(la2), ((toDeg(lo2) + 540) % 360) - 180];
 }
 
+/** Smallest angle (0-180) between two compass headings in degrees. */
+export function angleDiffDeg(a, b) {
+  return 180 - Math.abs(Math.abs(a - b) - 180);
+}
+
 export function compassDir(deg) {
   const dirs = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE',
     'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW'];

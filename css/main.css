@@ -876,6 +876,7 @@ body.night .map-wrap::after {
 .hud-grid { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; }
 .hud-arrow { display: inline-block; color: var(--accent); font-size: 14px; }
 .hud-note { margin-top: 6px; font-size: 10px; color: var(--text-dim); line-height: 1.35; }
+.hud-warn { margin-top: 6px; padding: 5px 8px; border-radius: 6px; background: rgba(245, 158, 11, 0.18); border: 1px solid rgba(245, 158, 11, 0.5); color: #fbbf24; font-size: 11px; font-weight: 600; line-height: 1.35; }
 .hud-note-btn { float: right; padding: 2px 8px; min-width: 0; font-size: 13px; }
 .hud-vitals { margin-top: 6px; font-family: var(--mono); font-size: 10.5px; color: var(--text-dim); }
 .hud-coords { text-decoration: underline dotted; cursor: pointer; }

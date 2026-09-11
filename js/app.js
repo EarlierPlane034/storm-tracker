@@ -21,7 +21,7 @@ import * as geo from './location.js';
 import { evaluateAlerts, evaluateStorms, requestNotificationPermission } from './alerts/alertEngine.js';
 import { connectPush, disconnectPush, syncPush } from './alerts/pushClient.js';
 import { initChat, openChat } from './ui/chatAssistant.js';
-import { bearingDeg, compassDir, fmtSpeed, sunTimes } from './utils.js';
+import { bearingDeg, compassDir, fmtSpeed, sunTimes, angleDiffDeg } from './utils.js';
 import { addNote, getNotes, getTrack, recordTrackPoint } from './ui/journal.js';
 import { captureMap } from './ui/snapshot.js';
 import { renderReports, submitReport, fetchCommunityReports } from './ui/reportsPanel.js';
@@ -718,6 +718,7 @@ function updateChaseHud(user) {
   } else {
     const brg = bearingDeg(user.lat, user.lon, target.cell.lat, target.cell.lon);
     const eta = target.userRel.etaMin != null ? `~${target.userRel.etaMin} min to you` : 'not tracking to you';
+    const overshoot = overshootWarning(user, target, brg);
     hud.innerHTML = `
       <div class="hud-title">TARGET · ${escapeHud(target.cell.id)} · ${target.severeScore}/100 ${noteBtn}</div>
       <div class="hud-grid">
@@ -727,6 +728,7 @@ function updateChaseHud(user) {
         <span>You: ${escapeHud(mySpeed)}</span>
         <span>${daylight}</span>
       </div>
+      ${overshoot ? `<div class="hud-warn">⚠️ ${escapeHud(overshoot)}</div>` : ''}
       <div class="hud-note">${target.type.id.includes('supercell') || target.type.id === 'supercell'
         ? 'Right-movers are typically safest viewed from the SE, storm at your NW — never enter the rain core, and keep a paved escape route south or east.'
         : 'Stay out of the storm\'s path and ahead of the gust front.'} Unofficial guidance — your safety decisions are your own.</div>
@@ -751,6 +753,31 @@ function updateChaseHud(user) {
         .then(() => showToast('GPS coordinates copied.'));
     };
   }
+}
+
+/**
+ * Roadmap #191: warn when the chaser is closing on the target faster than
+ * the storm itself is moving, while heading roughly at it — that combination
+ * means you'll reach its current position before it clears out, i.e. drive
+ * past the safe standoff distance and into its path. Needs real vehicle
+ * speed/heading from the GPS fix (only populated while actually moving);
+ * silently does nothing otherwise rather than guessing.
+ */
+function overshootWarning(user, target, brgToTarget) {
+  if (user.speedMps == null || user.speedMps < 1 || user.headingDeg == null) return null;
+  const c = target.cell;
+  if (c.moveDirDeg == null || !c.moveSpeedKts) return null;
+  if (target.userRel.distKm > 60) return null; // too far out to matter yet
+
+  const headingOff = angleDiffDeg(user.headingDeg, brgToTarget);
+  if (headingOff > 50) return null; // not actually driving toward it
+
+  const userKmh = user.speedMps * 3.6;
+  const stormKmh = c.moveSpeedKts * 1.852;
+  if (userKmh - stormKmh < 15) return null; // not closing meaningfully faster
+
+  return `Closing at ${Math.round(userKmh)} km/h vs. the storm's ${Math.round(stormKmh)} km/h — ` +
+    `ease off or you'll overshoot past a safe standoff distance into its path.`;
 }
 
 /** "Sunset 8:42 PM · 2h 10m of light" or an after-dark caution. */
