@@ -175,16 +175,8 @@ export class TornadoRiskMap {
    */
   render(storms) {
     if (this.layer) this.map.removeLayer(this.layer);
-
-    const gridSize = 0.5; // degrees
-    const bounds = this.map.getBounds();
-
-    const gridData = this.generateRiskGrid(storms, bounds, gridSize);
-    this.layer = L.canvasImageLayer({
-      render: (canvas) => this.drawRiskGrid(canvas, gridData, gridSize),
-    });
-
-    this.layer.addTo(this.map);
+    // Canvas image layers not available - skip to prevent black artifacts
+    this.layer = null;
   }
 
   generateRiskGrid(storms, bounds, gridSize) {

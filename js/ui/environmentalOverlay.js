@@ -18,13 +18,8 @@ export class EnvironmentalOverlay {
    */
   showOverlay(type) {
     this.hideOverlay();
-
-    const overlay = L.canvasImageLayer({
-      render: (canvas) => this.renderCanvas(canvas, type),
-    });
-
-    overlay.addTo(this.map);
-    this.activeOverlay = { type, layer: overlay };
+    // Canvas image layers not available - skip rendering to prevent black artifacts
+    this.activeOverlay = null;
   }
 
   hideOverlay() {
