@@ -46,10 +46,6 @@ export class MapView {
     // Tile layers only fetch when the gesture settles — never mid-pinch.
     const calmTiles = { updateWhenZooming: false, updateWhenIdle: true, keepBuffer: 2 };
 
-    L.tileLayer(CONFIG.endpoints.basemapDark, {
-      attribution: '&copy; OSM &copy; CARTO', subdomains: 'abcd', maxZoom: 19, ...calmTiles,
-    }).addTo(this.map);
-
     this.labelPane = this.map.createPane('labels');
     this.labelPane.style.zIndex = 420;
     this.labelPane.style.pointerEvents = 'none';
@@ -109,23 +105,27 @@ export class MapView {
     const basemaps = CONFIG.basemaps || [];
     if (basemaps.length === 0) return;
 
-    const container = L.DomUtil.create('div', 'basemap-switcher');
+    // Plain overlay div (like .product-rail / .legend) rather than a Leaflet
+    // control — Leaflet's 'topleft' corner visually collides with the
+    // product rail, which is positioned independently via CSS.
+    const container = document.createElement('div');
+    container.className = 'basemap-switcher';
+    L.DomEvent.disableClickPropagation(container);
+    L.DomEvent.disableScrollPropagation(container);
+
     basemaps.forEach((bm, idx) => {
-      const btn = L.DomUtil.create('button', idx === 0 ? 'basemap-btn active' : 'basemap-btn', container);
+      const btn = document.createElement('button');
+      btn.className = idx === 0 ? 'basemap-btn active' : 'basemap-btn';
       btn.textContent = bm.name;
+      btn.dataset.idx = idx;
       btn.onclick = (e) => {
         e.preventDefault();
-        e.stopPropagation();
         this.switchBasemap(idx, calmTiles);
       };
-      btn.dataset.idx = idx;
+      container.appendChild(btn);
     });
 
-    const control = L.Control.extend({
-      onAdd: () => container,
-    });
-    new control({ position: 'topleft' }).addTo(this.map);
-
+    this.map.getContainer().appendChild(container);
     this.switchBasemap(0, calmTiles);
   }
 
@@ -139,7 +139,6 @@ export class MapView {
     this.basemapLayer = L.tileLayer(bm.dark, {
       attribution: '&copy; Map providers', subdomains: 'abcd', maxZoom: 19, ...calmTiles,
     }).addTo(this.map);
-    this.map.getPane('tiles').insertBefore(this.basemapLayer.getContainer(), this.map.getPane('tiles').firstChild);
 
     this.currentBasemapIdx = idx;
     document.querySelectorAll('.basemap-btn').forEach((btn, i) => {

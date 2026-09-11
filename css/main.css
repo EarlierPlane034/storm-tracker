@@ -175,11 +175,14 @@ canvas[style*="background: black"] {
 
 /* ---------- Basemap switcher ---------- */
 .basemap-switcher {
+  position: absolute;
+  top: 90px; right: 10px;
   display: flex; flex-direction: column; gap: 4px;
   padding: 6px;
   background: rgba(18, 24, 33, 0.9);
   border: 1px solid var(--border);
   border-radius: 10px;
+  z-index: 1000;
 }
 .basemap-btn {
   padding: 6px 10px;
