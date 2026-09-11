@@ -1,0 +1,20 @@
+name = "stormlens"
+main = "cloudflare/worker.js"
+compatibility_date = "2024-01-01"
+
+# Cloudflare Pages configuration
+pages_build_caching = true
+
+# For Pages: the directory containing index.html
+[env.production]
+vars = { ENVIRONMENT = "production" }
+
+# KV namespace for push notifications worker
+[[kv_namespaces]]
+binding = "SUBS"
+id = "stormslens-subscriptions"
+preview_id = "stormslens-subscriptions-preview"
+
+# Cron triggers for the push notification worker
+[triggers]
+crons = ["* * * * *"]

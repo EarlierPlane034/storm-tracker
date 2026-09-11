@@ -30,9 +30,12 @@ import { fetchRadarSites } from './api/iem.js';
 import { getJSON } from './api/client.js';
 import { haversineKm, destinationPoint } from './utils.js';
 import { AdvancedAnalysisPanel } from './ui/advancedAnalysisPanel.js';
+import { Week3FeaturesPanel } from './ui/week3FeaturesPanel.js';
+import { FeatureDashboard } from './ui/featureDashboard.js';
+import { showQuickStartGuide } from './ui/quickStartGuide.js';
 import { recordStormMetrics } from './analysis/stormTrendAnalysis.js';
 
-let mapView, radar, advancedPanel;
+let mapView, radar, advancedPanel, week3Panel;
 let analyses = [];
 let route = null; // { name, coords: [[lat,lon],...] }
 let communityReports = [];
@@ -69,10 +72,16 @@ async function main() {
     ghost: (latlon) => (latlon ? mapView.setGhost(latlon[0], latlon[1]) : mapView.clearGhost()),
   });
 
-  // Initialize advanced analysis panel
+  // Initialize advanced analysis panel (Week 2)
   const analysisPanelContainer = document.getElementById('analysis-panel');
   if (analysisPanelContainer) {
     advancedPanel = new AdvancedAnalysisPanel('analysis-panel', mapView.map);
+  }
+
+  // Initialize Week 3 features panel
+  const week3Container = document.getElementById('week3-panel');
+  if (week3Container) {
+    week3Panel = new Week3FeaturesPanel('week3-panel', mapView.map);
   }
 
   wireChrome();
@@ -136,6 +145,7 @@ async function main() {
     syncPush(); // keep the push worker's copy of our location fresh
     reanalyze();
   });
+  document.getElementById('btn-help').addEventListener('click', showQuickStartGuide);
   document.getElementById('btn-locate').addEventListener('click', () => {
     geo.startWatching({ onError: (msg) => showToast(msg, { level: 'warn' }) });
     const loc = geo.getLocation();
@@ -160,9 +170,15 @@ async function main() {
 
   if (!settings.firstRunDone) {
     document.getElementById('app').classList.add('show-disclaimer');
-    showToast('Welcome to StormLens. Tip: on iPhone, open the Share menu and “Add to Home Screen” to install. AI analysis here is unofficial — always follow NWS warnings.', { ttlMs: 14_000 });
     setSetting('firstRunDone', true);
+    // Show quick start guide after a brief delay
+    setTimeout(() => showQuickStartGuide(), 800);
   }
+}
+
+/** Help button to show quick start guide anytime */
+export function openQuickStart() {
+  showQuickStartGuide();
 }
 
 /* ------------- Visibility-gated panel rendering -------------
@@ -208,6 +224,27 @@ function markPanelsStale(names) {
   }
 }
 
+function renderFeaturesPanel() {
+  const container = document.getElementById('features-panel');
+  if (!container) return;
+  const dashboard = new FeatureDashboard();
+  dashboard.render(container, (feature, label) => {
+    const panel = document.getElementById(`panel-${feature}`);
+    if (panel) {
+      // Show the feature panel
+      for (const p of ['storms', 'alerts', 'reports', 'analysis', 'week3', 'ai', 'settings', 'features']) {
+        const elem = document.getElementById(`panel-${p}`);
+        if (elem) elem.hidden = p !== feature;
+      }
+      // Update tab styles
+      document.querySelectorAll('.tab').forEach((t) => {
+        t.classList.toggle('active', t.dataset.panel === feature);
+      });
+      showToast(`Opening ${label}…`, { ttlMs: 1500 });
+    }
+  });
+}
+
 function showChaseTarget(t) {
   document.querySelectorAll('.panel').forEach((p) => { p.hidden = true; });
   if (targetMarker) mapView.map.removeLayer(targetMarker);
@@ -226,6 +263,9 @@ function selectStorm(a) {
   openStormSheet(a);
   if (advancedPanel) {
     advancedPanel.selectStorm(a);
+  }
+  if (week3Panel) {
+    week3Panel.selectStorm(a);
   }
 }
 
@@ -719,15 +759,16 @@ async function checkRoute(dest) {
 /* ---------------- Panels / tabs / settings ---------------- */
 
 function wireChrome() {
-  const panels = ['storms', 'alerts', 'reports', 'ai', 'settings', 'about'];
+  const panels = ['storms', 'alerts', 'reports', 'analysis', 'week3', 'ai', 'settings', 'about', 'features'];
   const tabs = document.querySelectorAll('.tab');
 
   const showPanel = (name) => {
     for (const p of [...panels, 'layers']) {
-      document.getElementById(`panel-${p}`).hidden = p !== name;
+      document.getElementById(`panel-${p}`)?.hidden !== undefined && (document.getElementById(`panel-${p}`).hidden = p !== name);
     }
     tabs.forEach((t) => t.classList.toggle('active', t.dataset.panel === (name || 'map')));
     if (name === 'settings') rerenderSettings();
+    if (name === 'features') renderFeaturesPanel();
     // Stale panels render the moment they become visible.
     if (name && dirtyPanels.has(name)) renderPanel(name);
   };
