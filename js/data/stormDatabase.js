@@ -208,6 +208,53 @@ export class StormDatabase {
     };
   }
 
+  /**
+   * Badges, day streak, and personal bests — computed from real recorded
+   * storms/sessions (recordStorm()/saveSession()), not placeholder data.
+   */
+  getAchievements() {
+    const storms = Array.from(this.storms.values());
+    const sessions = Array.from(this.sessions.values());
+
+    const badges = [];
+    const badge = (id, icon, name, earned) => badges.push({ id, icon, name, earned });
+    badge('first', '🌩️', 'First Storm Tracked', storms.length >= 1);
+    badge('spotter', '🔭', 'Storm Spotter (10 tracked)', storms.length >= 10);
+    badge('veteran', '🏆', 'Storm Veteran (50 tracked)', storms.length >= 50);
+    badge('rotation', '🌀', 'Rotation Witness', storms.some((s) => s.tvs || s.meso > 0));
+    badge('extreme', '🔴', 'High Roller (80+ score)', storms.some((s) => s.severeScore >= 80));
+    badge('marathon', '⏱️', 'Marathon Chaser (2+ hr session)', sessions.some((s) => s.durationMin >= 120));
+    badge('multi', '📡', 'Multi-Storm Day (3+ in one session)', sessions.some((s) => s.stormCount >= 3));
+
+    // Day streak: consecutive calendar days with a recorded storm or
+    // session, counting backward from today (or yesterday, so a streak
+    // doesn't reset to 0 just because today hasn't happened yet).
+    const days = new Set([
+      ...storms.map((s) => new Date(s.timestamp).toDateString()),
+      ...sessions.map((s) => new Date(s.date).toDateString()),
+    ]);
+    let streak = 0;
+    const cursor = new Date();
+    if (!days.has(cursor.toDateString())) cursor.setDate(cursor.getDate() - 1);
+    while (days.has(cursor.toDateString())) {
+      streak++;
+      cursor.setDate(cursor.getDate() - 1);
+    }
+
+    const byDay = new Map();
+    for (const s of storms) {
+      const d = new Date(s.timestamp).toDateString();
+      byDay.set(d, (byDay.get(d) || 0) + 1);
+    }
+    const personalBests = {
+      highestScore: storms.length ? Math.max(...storms.map((s) => s.severeScore)) : null,
+      mostInOneDay: byDay.size ? Math.max(...byDay.values()) : 0,
+      longestChaseMin: sessions.length ? Math.max(...sessions.map((s) => s.durationMin)) : 0,
+    };
+
+    return { badges, streak, personalBests };
+  }
+
   saveToStorage() {
     localStorage.setItem('stormDatabase', JSON.stringify(Array.from(this.storms.entries())));
     localStorage.setItem('sessionHistory', JSON.stringify(Array.from(this.sessions.entries())));

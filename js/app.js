@@ -616,9 +616,12 @@ function applyTheme() {
 
 let wakeLock = null;
 
+let chaseStartTime = null;
+
 async function applyChaseMode() {
   const hud = document.getElementById('chase-hud');
   if (settings.chaseMode) {
+    chaseStartTime ??= Date.now();
     updateChaseHud(geo.getLocation());
     // Keep the screen on during a chase (released automatically when off).
     try {
@@ -631,6 +634,17 @@ async function applyChaseMode() {
     document.removeEventListener('visibilitychange', reacquireWakeLock);
     try { await wakeLock?.release?.(); } catch { /* already gone */ }
     wakeLock = null;
+    // Chase mode just turned off (not just "was already off" — the null
+    // guard on chaseStartTime keeps this from firing on startup/no-ops) —
+    // log the session so History → Seasonal Statistics has real data.
+    if (chaseStartTime != null && week3Panel) {
+      const durationMin = Math.round((Date.now() - chaseStartTime) / 60_000);
+      const storms = (week3Panel.selectedAnalyses || []).filter((a) => a.severeScore != null);
+      if (durationMin >= 1 && storms.length) {
+        week3Panel.stormDatabase.saveSession(storms, durationMin);
+      }
+      chaseStartTime = null;
+    }
   }
 }
 
@@ -802,6 +816,16 @@ function syncTabbarHeight() {
   document.getElementById('app').style.setProperty('--tabbar-h', `${h}px`);
 }
 
+/** Last few cities flown to — shown first when the search box is empty. */
+const RECENT_KEY = 'stormlens.recentSearches.v1';
+function getRecentSearches() {
+  try { return JSON.parse(localStorage.getItem(RECENT_KEY)) || []; } catch { return []; }
+}
+function addRecentSearch(city) {
+  const next = [city, ...getRecentSearches().filter((c) => c.name !== city.name)].slice(0, 5);
+  try { localStorage.setItem(RECENT_KEY, JSON.stringify(next)); } catch { /* best effort */ }
+}
+
 /** City/landmark search: type-ahead over a static list, tap a result to fly there. */
 function wireLocationSearch() {
   const overlay = document.getElementById('search-overlay');
@@ -811,23 +835,29 @@ function wireLocationSearch() {
   const open = () => {
     overlay.hidden = false;
     input.value = '';
-    results.innerHTML = '';
+    renderResults([]);
     input.focus();
   };
   const close = () => { overlay.hidden = true; };
 
   const renderResults = (matches) => {
     results.innerHTML = '';
-    if (!matches.length) {
+    const showRecent = !input.value.trim() && matches.length === 0;
+    const list = showRecent ? getRecentSearches() : matches;
+    if (showRecent && list.length) {
+      results.appendChild(el('div', { class: 'muted', style: 'padding:8px 14px 2px; font-size:11px', text: 'RECENT' }));
+    }
+    if (!list.length) {
       if (input.value.trim()) {
         results.appendChild(el('div', { class: 'muted', style: 'padding:10px', text: 'No matches.' }));
       }
       return;
     }
-    for (const c of matches) {
+    for (const c of list) {
       const row = el('button', { class: 'search-result', text: c.name });
       row.addEventListener('click', () => {
         mapView.map.flyTo([c.lat, c.lon], 9, { duration: 0.8 });
+        addRecentSearch(c);
         close();
       });
       results.appendChild(row);

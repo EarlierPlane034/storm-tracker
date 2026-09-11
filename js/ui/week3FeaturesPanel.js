@@ -430,6 +430,7 @@ export class Week3FeaturesPanel {
     const metrics = this.stormDatabase.getAccuracyMetrics();
     const seasonalStats = this.stormDatabase.getSeasonalStats();
     const sessions = this.stormDatabase.getSessionHistory();
+    const { badges, streak, personalBests } = this.stormDatabase.getAchievements();
 
     container.innerHTML = `
       <div class="database-panel">
@@ -467,12 +468,39 @@ export class Week3FeaturesPanel {
         <div class="db-card">
           <h3>🎯 Recent Sessions</h3>
           <div class="sessions-list">
+            ${sessions.length === 0 ? '<div class="muted">No sessions yet — turn on Chase mode in Settings and track a storm to start building your history.</div>' : ''}
             ${sessions.slice(0, 5).map((s) => `
               <div class="session-card">
                 <div class="session-date">${new Date(s.date).toLocaleDateString()}</div>
                 <div class="session-info">${s.stormCount} storms · ${s.durationMin} min</div>
               </div>
             `).join('')}
+          </div>
+        </div>
+
+        <div class="db-card">
+          <h3>🏅 Achievements${streak > 0 ? ` · 🔥 ${streak}-day streak` : ''}</h3>
+          <div class="badge-grid">
+            ${badges.map((b) => `
+              <div class="badge-item ${b.earned ? 'earned' : 'locked'}" title="${b.earned ? 'Earned' : 'Not earned yet'}">
+                <div class="badge-icon">${b.earned ? b.icon : '🔒'}</div>
+                <div class="badge-name">${b.name}</div>
+              </div>
+            `).join('')}
+          </div>
+          <div class="metrics-grid" style="margin-top:12px">
+            <div class="metric">
+              <div class="metric-value">${personalBests.highestScore ?? '—'}</div>
+              <div class="metric-label">Highest score seen</div>
+            </div>
+            <div class="metric">
+              <div class="metric-value">${personalBests.mostInOneDay}</div>
+              <div class="metric-label">Most storms, 1 day</div>
+            </div>
+            <div class="metric">
+              <div class="metric-value">${personalBests.longestChaseMin}m</div>
+              <div class="metric-label">Longest chase</div>
+            </div>
           </div>
         </div>
 
@@ -598,6 +626,11 @@ export class Week3FeaturesPanel {
     this.selectedStorm = analysis.cell;
     this.selectedStorms = [analysis.cell, ...this.selectedStorms].slice(0, 3);
     this.selectedAnalyses = [analysis, ...(this.selectedAnalyses || [])].slice(0, 3);
+    // Personal chase history (Week 3 → History tab) only accumulates
+    // storms you actually looked at — recordStorm() existed with a full
+    // API (seasonal stats, accuracy tracking, CSV/JSON export) but was
+    // never called anywhere, so that tab was permanently empty.
+    this.stormDatabase.recordStorm(analysis.cell, analysis);
 
     // Rerender the currently active tab
     if (this.activeTab !== 'education' && this.activeTab !== 'community') {
@@ -787,6 +820,21 @@ export class Week3FeaturesPanel {
         color: #9ca3af;
         margin-top: 4px;
       }
+
+      .badge-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(90px, 1fr));
+        gap: 10px;
+      }
+      .badge-item {
+        text-align: center;
+        padding: 10px 6px;
+        border-radius: 8px;
+        background: rgba(59, 130, 246, 0.08);
+      }
+      .badge-item.locked { opacity: 0.4; }
+      .badge-icon { font-size: 26px; }
+      .badge-name { font-size: 10px; color: #cbd5e1; margin-top: 4px; line-height: 1.3; }
 
       button.voice-btn, button.export-btn, button.lesson-btn, button.game-btn {
         background: rgba(59, 130, 246, 0.25);

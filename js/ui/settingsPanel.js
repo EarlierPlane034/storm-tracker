@@ -3,6 +3,8 @@ import { el, fmtRelTime } from '../utils.js';
 import { settings, setSetting } from '../storage.js';
 import { renderJournalSection } from './journal.js';
 import { getState } from '../api/sources.js';
+import { getLocation } from '../location.js';
+import { showToast } from './toasts.js';
 
 export function renderSettings({ onChanged, onRequestNotifications, onRouteCheck, onConnectPush, onDisconnectPush }) {
   const host = document.getElementById('settings-body');
@@ -63,6 +65,22 @@ export function renderSettings({ onChanged, onRequestNotifications, onRouteCheck
   toggleRow('Follow me', 'Auto-center the map on your position as you drive', 'followMe');
   toggleRow('Spoken alerts', 'Speak dangerous alerts aloud — plays through CarPlay/Bluetooth car audio', 'voiceAlerts');
   toggleRow('Data saver', 'Slower refresh (5 min) for weak cell signal in the field', 'dataSaver');
+  host.appendChild(el('div', { class: 'setting-row' }, [
+    el('label', { html: 'Share my location<span class="hint">Sends your exact GPS coordinates + a timestamp — for texting a contact in an emergency</span>' }),
+    el('button', {
+      class: 'product-btn', text: '📍 Share',
+      onclick: async () => {
+        const loc = getLocation();
+        if (!loc) { showToast('No GPS fix yet — enable location (⌖) first.', { level: 'warn' }); return; }
+        const text = `📍 My location (StormLens, ${new Date().toLocaleString()}): ` +
+          `${loc.lat.toFixed(5)}, ${loc.lon.toFixed(5)} — https://maps.google.com/?q=${loc.lat},${loc.lon}`;
+        try {
+          if (navigator.share) await navigator.share({ title: 'My location', text });
+          else { await navigator.clipboard.writeText(text); showToast('Location copied to the clipboard.'); }
+        } catch { /* user cancelled */ }
+      },
+    }),
+  ]));
 
   // Pre-chase checklist (persisted; reset before each chase).
   host.appendChild(el('div', { class: 'muted', style: 'font-size:11px;margin:8px 4px 2px', text: 'Pre-chase checklist' }));
@@ -70,6 +88,8 @@ export function renderSettings({ onChanged, onRequestNotifications, onRouteCheck
     'Fuel topped off', 'Phone + battery pack charged', 'Water & snacks',
     'First aid kit', 'Flashlight / headlamp', 'Paper map (cell backup)',
     'Escape routes reviewed', 'Someone knows your plan',
+    'Checked CAPE/shear/LCL for today', 'Tire pressure & spare checked',
+    'GMRS/CB channel agreed with any chase partners', 'Rally/regroup point set',
   ];
   for (const item of CHECK_ITEMS) {
     const input = el('input', {
