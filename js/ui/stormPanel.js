@@ -2,7 +2,7 @@
  * Storm list panel (ranked most→least dangerous) and the tap-to-open storm
  * detail sheet with full stats, AI narrative, tornado meter and trend charts.
  */
-import { el, escapeHtml, fmtDistance, fmtSpeed, fmtHailSize, compassDir, fmtRelTime } from '../utils.js';
+import { el, escapeHtml, fmtDistance, fmtSpeed, fmtHailSize, compassDir, fmtRelTime, severityColor, downloadFile } from '../utils.js';
 import { settings } from '../storage.js';
 import { CONFIG } from '../config.js';
 import { getHistory } from '../analysis/trends.js';
@@ -127,6 +127,7 @@ export function openStormSheet(a) {
     ]),
     el('div', { style: 'display:flex;align-items:center;gap:8px' }, [
       el('button', { class: 'icon-btn', text: '📤', 'aria-label': 'Share storm', onclick: () => shareStorm(a) }),
+      el('button', { class: 'icon-btn', text: '🖼️', 'aria-label': 'Share scorecard image', onclick: () => shareScorecard(a) }),
       el('span', { class: `score-pill ${scoreClass(a.severeScore)}`, text: `${a.severeScore}` }),
     ]),
   ]));
@@ -296,6 +297,101 @@ async function shareStorm(a) {
     await navigator.clipboard.writeText(text);
     showToast('Storm summary copied to the clipboard.');
   } catch { /* user cancelled the share sheet */ }
+}
+
+/** Render a shareable PNG "scorecard" for one storm — ID, scores, timestamp. */
+async function shareScorecard(a) {
+  const c = a.cell;
+  const W = 800, H = 1000;
+  const canvas = document.createElement('canvas');
+  canvas.width = W; canvas.height = H;
+  const ctx = canvas.getContext('2d');
+
+  ctx.fillStyle = '#0b0f14';
+  ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = '#38bdf8';
+  ctx.font = 'bold 28px sans-serif';
+  ctx.fillText('⛈ StormLens', 40, 60);
+  ctx.fillStyle = '#8b97a5';
+  ctx.font = '14px monospace';
+  ctx.fillText(new Date().toLocaleString(), 40, 86);
+
+  ctx.fillStyle = '#e5eaf0';
+  ctx.font = 'bold 40px sans-serif';
+  ctx.fillText(c.id, 40, 160);
+  ctx.font = '20px sans-serif';
+  ctx.fillStyle = '#8b97a5';
+  ctx.fillText(a.type.label, 40, 192);
+
+  // Big severity score circle.
+  const color = severityColor(a.severeScore);
+  ctx.beginPath();
+  ctx.arc(W / 2, 340, 130, 0, Math.PI * 2);
+  ctx.fillStyle = color;
+  ctx.fill();
+  ctx.fillStyle = a.severeScore >= 41 && a.severeScore < 61 ? '#04121a' : '#ffffff';
+  ctx.font = 'bold 90px monospace';
+  ctx.textAlign = 'center';
+  ctx.fillText(String(a.severeScore), W / 2, 365);
+  ctx.font = '18px sans-serif';
+  ctx.fillText('SEVERE SCORE', W / 2, 400);
+  ctx.textAlign = 'left';
+
+  // Hazard bars.
+  const bars = [
+    ['Tornado', a.tornado.score], ['Hail', a.scores.hail], ['Wind', a.scores.wind],
+    ['Flood', a.scores.flood], ['Lightning', a.scores.lightning],
+  ];
+  let y = 560;
+  for (const [label, score] of bars) {
+    ctx.fillStyle = '#8b97a5';
+    ctx.font = '16px sans-serif';
+    ctx.fillText(label, 40, y);
+    ctx.fillStyle = '#1f2937';
+    ctx.fillRect(180, y - 16, 580, 18);
+    ctx.fillStyle = severityColor(score);
+    ctx.fillRect(180, y - 16, 580 * (Math.min(100, score) / 100), 18);
+    ctx.fillStyle = '#e5eaf0';
+    ctx.font = 'bold 14px monospace';
+    ctx.fillText(String(Math.round(score)), 770 - ctx.measureText(String(Math.round(score))).width, y - 2);
+    y += 46;
+  }
+
+  ctx.fillStyle = '#e5eaf0';
+  ctx.font = '16px sans-serif';
+  ctx.fillText(`Movement: ${motionText(c)}`, 40, y + 20);
+  if (c.maxDbz != null) ctx.fillText(`Max reflectivity: ${c.maxDbz} dBZ`, 40, y + 50);
+
+  ctx.fillStyle = '#64748b';
+  ctx.font = '12px sans-serif';
+  wrapText(ctx, 'AI-generated interpretation of public radar data — NOT an official NWS warning or forecast.', 40, H - 40, W - 80, 16);
+
+  const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
+  const file = new File([blob], `stormlens-${c.id}.png`, { type: 'image/png' });
+  try {
+    if (navigator.canShare?.({ files: [file] })) {
+      await navigator.share({ files: [file], title: `StormLens — ${c.id}` });
+      return;
+    }
+  } catch { /* fall through to download */ }
+  downloadFile(blob, `stormlens-${c.id}.png`);
+  showToast('Scorecard image saved.');
+}
+
+function wrapText(ctx, text, x, y, maxWidth, lineHeight) {
+  const words = text.split(' ');
+  let line = '';
+  for (const word of words) {
+    const test = line ? `${line} ${word}` : word;
+    if (ctx.measureText(test).width > maxWidth && line) {
+      ctx.fillText(line, x, y);
+      line = word;
+      y += lineHeight;
+    } else {
+      line = test;
+    }
+  }
+  if (line) ctx.fillText(line, x, y);
 }
 
 /** Wire up sheet dismissal once. */

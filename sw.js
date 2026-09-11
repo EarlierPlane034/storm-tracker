@@ -11,7 +11,7 @@
  *    cached tiles are served only when offline.
  * ========================================================================== */
 
-const VERSION = 'stormlens-v23';
+const VERSION = 'stormlens-v24';
 const SHELL_CACHE = `${VERSION}-shell`;
 const DATA_CACHE = `${VERSION}-data`;
 const TILE_CACHE = `${VERSION}-tiles`;
@@ -28,6 +28,7 @@ const SHELL_ASSETS = [
   './js/storage.js',
   './js/location.js',
   './js/data/cities.js',
+  './js/data/glossary.js',
   './js/api/client.js',
   './js/api/nws.js',
   './js/api/iem.js',

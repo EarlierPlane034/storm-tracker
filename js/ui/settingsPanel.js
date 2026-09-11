@@ -55,6 +55,8 @@ export function renderSettings({ onChanged, onRequestNotifications, onRouteCheck
   toggleRow('Radar smoothing', 'Softens pixel edges', 'radarSmoothing');
   toggleRow('Night mode', 'Dim red theme for driving in the dark', 'nightMode');
   toggleRow('Color-blind friendly colors', 'Blue/yellow/orange/purple severity scale instead of green/red', 'colorblindMode');
+  toggleRow('Large text', 'Bigger text on storm cards, stats and lists', 'largeText');
+  toggleRow('High contrast', 'Brighter text and borders for bright-sunlight readability', 'highContrast');
 
   section('Storm chasing');
   toggleRow('Chase mode', 'On-map HUD with bearing/ETA to your target storm, your speed, and keeps the screen awake', 'chaseMode');
@@ -149,6 +151,26 @@ export function renderSettings({ onChanged, onRequestNotifications, onRouteCheck
   selectRow('Alert language', 'Alert titles, shelter instructions and spoken alerts', 'language',
     [['en', 'English'], ['es', 'Español']]);
   toggleRow('Haptic alerts', 'Vibration patterns by severity (Android only — iOS blocks web vibration)', 'hapticAlerts');
+  toggleRow('Sound alerts', 'Play a tone (tornado siren / warning tone / ping by hazard) in addition to vibration', 'soundAlerts');
+  toggleRow('Custom thresholds', 'Alert on your own tornado %/hail/wind numbers, on top of the categories above', 'customThresholds.enabled');
+  const thresholdRow = (label, path, min, max, step, suffix = '') => {
+    const value = el('span', { class: 'hint', text: `${getPath(path)}${suffix}` });
+    const input = el('input', {
+      type: 'range', min, max, step,
+      oninput: (e) => {
+        setSetting(path, Number(e.target.value));
+        value.textContent = `${e.target.value}${suffix}`;
+        onChanged(path);
+      },
+    });
+    input.value = String(getPath(path));
+    host.appendChild(el('div', { class: 'setting-row' }, [
+      el('label', {}, [document.createTextNode(label), value]), input,
+    ]));
+  };
+  thresholdRow('Tornado % threshold', 'customThresholds.tornadoPct', 10, 90, 5, '%');
+  thresholdRow('Hail size threshold', 'customThresholds.hailIn', 0.5, 3, 0.25, '"');
+  thresholdRow('Wind score threshold', 'customThresholds.windScore', 20, 90, 5);
 
   section('Favorite locations');
   host.appendChild(el('div', { class: 'muted', style: 'font-size:11px;margin:0 4px 4px', text: 'Tap a favorite to fly the map there. Favorites are also watched by the alert engine — warnings and strong rotation near them will notify you.' }));

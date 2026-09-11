@@ -16,6 +16,7 @@ import { settings } from '../storage.js';
 import { fmtDistance, haversineKm } from '../utils.js';
 import { showToast } from '../ui/toasts.js';
 import { distToAlert } from '../ui/alertsPanel.js';
+import { AudioAlerts } from '../audio/voiceAlerts.js';
 
 /** Places the engine watches: the user's GPS position + saved favorites. */
 export function watchedPlaces(user) {
@@ -91,6 +92,20 @@ function buzz(level) {
   navigator.vibrate(level === 'danger' ? [400, 120, 400, 120, 400] : [200, 100, 200]);
 }
 
+/* ---- Sound alerts: a distinct tone per hazard type, layered on top of
+ * vibration/voice. Lazily constructed — AudioContext must be created near
+ * a user gesture on some browsers, and most users never enable this. */
+let audioAlerts = null;
+function chime(title, level) {
+  if (!settings.soundAlerts) return;
+  try {
+    audioAlerts ??= new AudioAlerts();
+    if (title.includes('Tornado') || title.includes('TORNADO')) audioAlerts.playTornadoSiren();
+    else if (level === 'danger') audioAlerts.playWarningTone();
+    else audioAlerts.playNotification();
+  } catch { /* AudioContext unavailable/blocked — sound is best-effort */ }
+}
+
 let speaking = 0;
 
 /**
@@ -115,6 +130,7 @@ function deliver(title, body, level = 'warn') {
   body = localize(body);
   logEvent(title, body, level);
   buzz(level);
+  chime(title, level);
   showToast(`${title} — ${body}`, { level, ttlMs: 12_000 });
   if (level === 'danger') speak(`${title}. ${body}`);
   if (settings.notifySensitivity === 'off') return;
@@ -228,6 +244,31 @@ export function evaluateStorms(analyses, user) {
         'Storm approaching your location',
         `${a.type.label} (score ${a.severeScore}/100) is ~${a.userRel.etaMin} min out, ${dist} away.`,
         a.severeScore >= 61 ? 'danger' : 'warn'));
+    }
+
+    // User-defined thresholds (Settings → Alerts → Custom thresholds) — an
+    // extra layer on top of the category toggles above, for chasers who
+    // want to tune sensitivity to a specific number rather than a band.
+    const th = settings.customThresholds;
+    if (th?.enabled) {
+      if (a.tornado.score >= th.tornadoPct) {
+        once(`custom-tor:${c.id}`, () => deliver(
+          'Tornado threshold crossed',
+          `${a.type.label} ${dist} away: AI tornado chance ${a.tornado.score}% (your threshold: ${th.tornadoPct}%).`,
+          'danger'));
+      }
+      if (c.maxHailIn != null && c.maxHailIn >= th.hailIn) {
+        once(`custom-hail:${c.id}`, () => deliver(
+          'Hail threshold crossed',
+          `${a.type.label} ${dist} away: estimated hail ${c.maxHailIn.toFixed(1)}" (your threshold: ${th.hailIn}").`,
+          'warn'));
+      }
+      if (a.scores.wind >= th.windScore) {
+        once(`custom-wind:${c.id}`, () => deliver(
+          'Wind threshold crossed',
+          `${a.type.label} ${dist} away: AI wind severity ${a.scores.wind}/100 (your threshold: ${th.windScore}).`,
+          'warn'));
+      }
     }
   }
 }

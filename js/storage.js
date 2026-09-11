@@ -14,6 +14,8 @@ export const DEFAULT_SETTINGS = {
   radarSmoothing: true,         // CSS-level smoothing of radar tiles
   nightMode: false,             // dim red theme for night driving
   colorblindMode: false,        // blue/yellow/orange severity palette instead of red/green
+  largeText: false,             // bump font size on commonly-read small text
+  highContrast: false,          // brighter text/borders for bright-sunlight readability
   chaseMode: false,             // chaser HUD + screen wake lock
   followMe: false,              // auto-center the map on GPS updates
   voiceAlerts: false,           // speak dangerous alerts (works over CarPlay/BT audio)
@@ -29,6 +31,13 @@ export const DEFAULT_SETTINGS = {
   aiSensitivity: 'balanced',    // 'conservative' | 'balanced' | 'aggressive'
   notifySensitivity: 'high-only', // 'all' | 'high-only' | 'off'
   lightningAlertKm: 30,
+  customThresholds: {
+    enabled: false,      // off by default — the built-in category alerts cover most people
+    tornadoPct: 50,       // alert when AI tornado score (0-100) crosses this
+    hailIn: 1.5,          // alert when estimated hail size crosses this (inches)
+    windScore: 60,        // alert when AI wind severity score (0-100) crosses this
+  },
+  soundAlerts: false,      // play a tone (in addition to vibration/voice) on delivery
   alertsEnabled: {
     tornadoWarning: true,
     tornadoWatch: true,

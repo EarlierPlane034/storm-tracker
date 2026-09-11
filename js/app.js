@@ -35,6 +35,7 @@ import { FeatureDashboard } from './ui/featureDashboard.js';
 import { showQuickStartGuide } from './ui/quickStartGuide.js';
 import { recordStormMetrics } from './analysis/stormTrendAnalysis.js';
 import { searchCities } from './data/cities.js';
+import { searchGlossary } from './data/glossary.js';
 
 let mapView, radar, advancedPanel, week3Panel;
 let analyses = [];
@@ -118,6 +119,7 @@ async function main() {
   sources.subscribe('alerts', (alerts) => {
     mapView.renderAlerts(alerts);      // map polygons always current
     markPanelsStale(['alerts']);       // list renders when looked at
+    updateAlertBadge(alerts);          // tab badge stays live even off-screen
     evaluateAlerts(alerts, geo.getLocation());
     reanalyze();
   });
@@ -169,6 +171,7 @@ async function main() {
   geo.startWatching({ onError: () => { /* silent on startup; button re-tries with message */ } });
 
   wireLocationSearch();
+  wireGlossary();
   wireKeyboardShortcuts();
 
   // ---- Status chrome --------------------------------------------------------------
@@ -350,6 +353,16 @@ function updateTicker(user) {
   ticker.hidden = false;
   const next = tickerHeadline(analyses, user);
   if (text.textContent !== next) text.textContent = next; // avoid needless paints
+}
+
+/** Keep the Alerts tab badge current the moment new data arrives, not only
+ * when the panel happens to be opened (renderAlerts() also sets this, but
+ * only runs when that panel is visible). */
+function updateAlertBadge(alerts) {
+  const badge = document.getElementById('alert-badge');
+  const count = alerts.filter((a) => a.kind.endsWith('warning')).length;
+  badge.hidden = count === 0;
+  badge.textContent = String(count);
 }
 
 function updateGpsChip(user) {
@@ -595,6 +608,8 @@ async function loadTornadoHistory() {
 function applyTheme() {
   document.body.classList.toggle('night', !!settings.nightMode);
   document.body.classList.toggle('colorblind', !!settings.colorblindMode);
+  document.body.classList.toggle('large-text', !!settings.largeText);
+  document.body.classList.toggle('high-contrast', !!settings.highContrast);
 }
 
 /* ---------------- Chase mode: HUD + screen wake lock ---------------- */
@@ -844,6 +859,35 @@ function wireKeyboardShortcuts() {
   });
 }
 
+/** Weather term glossary: tap 📖, search or browse plain-English definitions. */
+function wireGlossary() {
+  const overlay = document.getElementById('glossary-overlay');
+  const input = document.getElementById('glossary-input');
+  const results = document.getElementById('glossary-results');
+
+  const render = (query) => {
+    results.innerHTML = '';
+    for (const g of searchGlossary(query)) {
+      results.appendChild(el('div', { class: 'glossary-entry' }, [
+        el('div', { class: 'glossary-term', text: g.term }),
+        el('div', { class: 'glossary-def', text: g.def }),
+      ]));
+    }
+    if (!results.children.length) {
+      results.appendChild(el('div', { class: 'muted', style: 'padding:10px', text: 'No matching terms.' }));
+    }
+  };
+
+  const open = () => { overlay.hidden = false; input.value = ''; render(''); input.focus(); };
+  const close = () => { overlay.hidden = true; };
+
+  document.getElementById('btn-glossary').addEventListener('click', open);
+  document.getElementById('btn-glossary-close').addEventListener('click', close);
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+  input.addEventListener('input', () => render(input.value));
+  input.addEventListener('keydown', (e) => { if (e.key === 'Escape') close(); });
+}
+
 function wireChrome() {
   const panels = ['storms', 'alerts', 'reports', 'analysis', 'week3', 'ai', 'settings', 'about', 'features'];
   const tabs = document.querySelectorAll('.tab');
@@ -920,7 +964,7 @@ function wireChrome() {
         showToast('Chase-day replay drawn — your route in blue, 📝 marks your notes. Load again from Settings to redraw.');
         return;
       }
-      if (path === 'nightMode') applyTheme();
+      if (path === 'nightMode' || path === 'largeText' || path === 'highContrast') applyTheme();
       if (path === 'colorblindMode') { applyTheme(); mapView.renderCells(visibleAnalyses(geo.getLocation())); }
       if (path === 'chaseMode') applyChaseMode();
       if (path === 'dataSaver') {

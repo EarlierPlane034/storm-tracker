@@ -26,6 +26,37 @@
   --mono: "SF Mono", ui-monospace, Menlo, Consolas, monospace;
 }
 
+/* High contrast (Settings → brighter text/borders for bright sunlight) —
+   most of the UI already reads these custom properties, so overriding
+   them here cascades everywhere without per-component rules. */
+body.high-contrast {
+  --bg-raised: #1a2333;
+  --bg-overlay: rgba(20, 26, 36, 0.97);
+  --border: #64748b;
+  --text: #ffffff;
+  --text-dim: #d1d9e6;
+}
+body.high-contrast .card, body.high-contrast .stat,
+body.high-contrast .prediction-card, body.high-contrast .chart-card {
+  border-width: 2px;
+}
+
+/* Large text (Settings) — bumps the commonly-read small text across storm
+   cards, stat grids and lists. Not a full rem-based rescale (most of this
+   app's CSS is px-sized by design), but covers the highest-traffic text. */
+body.large-text .storm-meta, body.large-text .risk-chip, body.large-text .stat .k,
+body.large-text .card .muted, body.large-text .hint, body.large-text .setting-row,
+body.large-text .ai-block, body.large-text .alert-area, body.large-text .toast,
+body.large-text .muted, body.large-text .storm-card .muted {
+  font-size: 15px;
+}
+body.large-text .storm-id, body.large-text .panel-head h2 {
+  font-size: 19px;
+}
+body.large-text .stat .v, body.large-text .score-pill, body.large-text .tab {
+  font-size: 15px;
+}
+
 * { margin: 0; padding: 0; box-sizing: border-box; }
 
 html, body {
@@ -229,6 +260,14 @@ canvas[style*="background: black"] {
 }
 .search-result:last-child { border-bottom: none; }
 .search-result:active { background: var(--border); }
+
+.glossary-entry {
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border);
+}
+.glossary-entry:last-child { border-bottom: none; }
+.glossary-term { font-weight: 700; color: var(--accent); font-size: 14px; margin-bottom: 3px; }
+.glossary-def { font-size: 13px; color: var(--text-dim); line-height: 1.4; }
 
 /* ---------- Basemap switcher ---------- */
 .basemap-switcher {

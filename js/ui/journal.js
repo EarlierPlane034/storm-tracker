@@ -3,7 +3,7 @@
  * listed (and exportable via the share sheet) in Settings. Stored only in
  * localStorage on this device.
  */
-import { el, fmtTimeLocal } from '../utils.js';
+import { el, fmtTimeLocal, downloadFile, escapeHtml } from '../utils.js';
 import { showToast } from './toasts.js';
 
 const KEY = 'stormlens.journal.v1';
@@ -40,6 +40,7 @@ export function renderJournalSection(host, { onChanged, onShowTrack }) {
     el('label', { html: `Chase track<span class="hint">${track.length ? `${track.length} GPS points recorded while chase mode was on` : 'Turn on Chase mode to record your route'}</span>` }),
     el('div', { style: 'display:flex;gap:6px' }, [
       track.length >= 2 ? el('button', { class: 'product-btn', text: 'Replay', onclick: () => onShowTrack?.() }) : null,
+      track.length >= 2 ? el('button', { class: 'product-btn', text: 'Export KML', onclick: exportTrackKml }) : null,
       track.length ? el('button', { class: 'product-btn', text: 'Clear', onclick: () => { clearTrack(); onChanged(); } }) : null,
     ]),
   ]));
@@ -96,6 +97,31 @@ export function renderJournalSection(host, { onChanged, onShowTrack }) {
       },
     }),
   ]));
+}
+
+/** Export the chase track as a .kml file (opens in Google Earth / most GPS apps). */
+function exportTrackKml() {
+  const track = getTrack();
+  if (track.length < 2) return;
+  const coords = track.map((p) => `${p.lon},${p.lat},0`).join(' ');
+  const when = new Date(track[0].t).toLocaleDateString();
+  const kml = `<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2">
+  <Document>
+    <name>StormLens Chase Track — ${escapeHtml(when)}</name>
+    <Style id="track"><LineStyle><color>ff38bdf8</color><width>4</width></LineStyle></Style>
+    <Placemark>
+      <name>Chase Route</name>
+      <styleUrl>#track</styleUrl>
+      <LineString>
+        <tessellate>1</tessellate>
+        <coordinates>${coords}</coordinates>
+      </LineString>
+    </Placemark>
+  </Document>
+</kml>`;
+  downloadFile(kml, `stormlens-chase-${when.replace(/\//g, '-')}.kml`, 'application/vnd.google-earth.kml+xml');
+  showToast('Chase track exported as KML — open it in Google Earth or most GPS apps.');
 }
 
 function escapeText(s) {

@@ -174,6 +174,17 @@ export function sunTimes(lat, lon, date = new Date()) {
   return { sunrise: calc(true), sunset: calc(false) };
 }
 
+/** Trigger a browser download for in-memory content (text or a Blob). */
+export function downloadFile(content, filename, type) {
+  const blob = content instanceof Blob ? content : new Blob([content], { type });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 export function debounce(fn, ms) {
   let id;
   return (...args) => {
