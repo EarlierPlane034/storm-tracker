@@ -9,6 +9,7 @@
 import { CONFIG } from '../config.js';
 import { settings } from '../storage.js';
 import { showToast } from './toasts.js';
+import { severityColor } from '../utils.js';
 
 function tileUrl(template, z, x, y) {
   return template
@@ -81,8 +82,7 @@ export async function captureMap(map, radar, analyses, user) {
     for (const a of analyses.slice(0, 100)) {
       const [x, y] = toXY(a.cell.lat, a.cell.lon);
       if (x < -20 || y < -20 || x > size.x + 20 || y > size.y + 20) continue;
-      const color = a.severeScore >= 81 ? '#ef4444' : a.severeScore >= 61 ? '#fb923c'
-        : a.severeScore >= 41 ? '#fbbf24' : a.severeScore >= 21 ? '#34d399' : '#64748b';
+      const color = severityColor(a.severeScore);
       ctx.beginPath();
       ctx.arc(x, y, 11, 0, Math.PI * 2);
       ctx.fillStyle = color;

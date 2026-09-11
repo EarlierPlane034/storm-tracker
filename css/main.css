@@ -173,6 +173,63 @@ canvas[style*="background: black"] {
 }
 .product-btn.unavailable { opacity: 0.45; }
 
+.popup-set-location-btn {
+  margin-top: 6px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--accent);
+  background: var(--accent-dim);
+  color: #e0f2fe;
+  font-size: 12px; font-weight: 600;
+  cursor: pointer;
+}
+
+/* ---------- Location search ---------- */
+.search-overlay {
+  position: fixed;
+  inset: 0;
+  top: calc(44px + var(--safe-top));
+  background: rgba(5, 7, 10, 0.75);
+  z-index: 1900;
+  padding: 12px;
+}
+.search-box {
+  display: flex; align-items: center; gap: 8px;
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 6px 6px 6px 12px;
+}
+.search-input {
+  flex: 1;
+  background: none; border: none; outline: none;
+  color: var(--text);
+  font-size: 15px;
+  padding: 8px 0;
+}
+.search-results {
+  margin-top: 8px;
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+  max-height: 60vh;
+  overflow-y: auto;
+}
+.search-result {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: none; border: none;
+  border-bottom: 1px solid var(--border);
+  color: var(--text);
+  padding: 12px 14px;
+  font-size: 14px;
+  cursor: pointer;
+}
+.search-result:last-child { border-bottom: none; }
+.search-result:active { background: var(--border); }
+
 /* ---------- Basemap switcher ---------- */
 .basemap-switcher {
   position: absolute;
@@ -294,6 +351,11 @@ canvas[style*="background: black"] {
   animation: slide-up 0.22s ease;
 }
 @keyframes slide-up { from { transform: translateY(24px); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes slide-down { from { transform: none; opacity: 1; } to { transform: translateY(24px); opacity: 0; } }
+.panel.closing, .sheet.closing {
+  animation: slide-down 0.18s ease forwards;
+  pointer-events: none;
+}
 
 /* Ensure all Leaflet overlays and canvases render cleanly */
 .leaflet-overlay-pane canvas, .leaflet-shadow-pane, .leaflet-marker-shadow {
@@ -379,6 +441,7 @@ canvas[style*="background: rgb(0, 0, 0)"] {
 .storm-card-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
 .storm-id { font-family: var(--mono); font-weight: 700; font-size: 13px; }
 .storm-meta { font-size: 11.5px; color: var(--text-dim); margin-top: 2px; }
+.stale-tag { color: var(--warn); font-weight: 600; }
 
 .score-pill {
   font-family: var(--mono); font-weight: 700; font-size: 13px;
@@ -400,6 +463,19 @@ canvas[style*="background: rgb(0, 0, 0)"] {
 .risk-chip.on-low  { background: #14532d; color: #86efac; }
 .risk-chip.on-med  { background: #713f12; color: #fde68a; }
 .risk-chip.on-high { background: #7f1d1d; color: #fecaca; }
+
+/* Color-blind palette (Settings → Radar → Color-blind friendly colors):
+   blue -> yellow -> orange -> purple instead of green -> yellow -> red, so
+   severity doesn't depend on red/green discrimination. */
+body.colorblind .score-low     { background: #0072B2; }
+body.colorblind .score-elev    { background: #F0E442; color: #1a1a1a; }
+body.colorblind .score-high    { background: #E69F00; }
+body.colorblind .score-extreme { background: #CC79A7; }
+body.colorblind .risk-chip.on-low  { background: #023e5c; color: #7dd3fc; }
+body.colorblind .risk-chip.on-med  { background: #5c4c00; color: #fde68a; }
+body.colorblind .risk-chip.on-high { background: #5c1f4a; color: #f0abfc; }
+body.colorblind .tor { color: #CC79A7; }
+body.colorblind .svr { color: #E69F00; }
 
 .trend-arrow { font-size: 12px; font-weight: 700; }
 .trend-up { color: var(--danger); }
@@ -523,7 +599,11 @@ canvas[style*="background: rgb(0, 0, 0)"] {
   border: 1px solid var(--border);
   border-left: 4px solid var(--accent);
   font-size: 13px;
-  animation: slide-up 0.25s ease;
+  animation: toast-in 0.45s cubic-bezier(0.16, 1, 0.3, 1);
+}
+@keyframes toast-in {
+  from { transform: translateY(14px); opacity: 0; }
+  to { transform: none; opacity: 1; }
 }
 .toast.danger { border-left-color: var(--danger); }
 .toast.warn { border-left-color: var(--warn); }
@@ -570,6 +650,19 @@ canvas[style*="background: rgb(0, 0, 0)"] {
 @keyframes cellpulse {
   0% { transform: scale(0.75); opacity: 1; }
   100% { transform: scale(1.7); opacity: 0; }
+}
+
+/* Rapid-intensification badge: small corner flag on the marker. */
+.ri-badge {
+  position: absolute;
+  top: -6px; right: -6px;
+  width: 15px; height: 15px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 10px;
+  background: #fbbf24;
+  border-radius: 50%;
+  border: 1.5px solid rgba(11,15,20,0.9);
+  box-shadow: 0 0 4px rgba(0,0,0,0.6);
 }
 
 /* ---------- Score breakdown bars ---------- */

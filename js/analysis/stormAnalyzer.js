@@ -18,7 +18,7 @@ import { clamp, scaleTo, haversineKm } from '../utils.js';
 import { settings } from '../storage.js';
 import {
   recordSample, getHistory, pruneStale, stormTrend,
-  rotationPersistence, isRapidlyIntensifying, trendOf,
+  rotationPersistence, isRapidlyIntensifying, trendOf, lifecycleStage,
 } from './trends.js';
 import { analyzeTornadoPotential } from './tornadoIntelligence.js';
 import {
@@ -245,6 +245,8 @@ function analyzeCell(cell, env, alerts, reports, user, allCells) {
 
   return {
     cell, type, warnings, trend, persistence,
+    rapidIntensification: isRapidlyIntensifying(cell.id),
+    lifecycle: lifecycleStage(cell.id, trend),
     severeScore: severe,
     scores: { rotation: Math.round(rotation), hail: Math.round(hail), wind: Math.round(wind), flood: Math.round(flood), lightning: Math.round(lightning), organization: Math.round(organization) },
     tornado,

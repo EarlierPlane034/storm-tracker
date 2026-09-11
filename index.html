@@ -36,10 +36,20 @@
       </div>
       <div class="topbar-status">
         <span class="net-dot" id="net-dot" title="Data feed status"></span>
+        <button class="icon-btn" id="btn-search" aria-label="Search city or landmark">&#128269;</button>
         <button class="icon-btn" id="btn-help" aria-label="Help & Quick Start">?</button>
         <button class="icon-btn" id="btn-locate" aria-label="Locate me">&#9678;</button>
       </div>
     </header>
+
+    <!-- City/landmark search overlay -->
+    <div class="search-overlay" id="search-overlay" hidden>
+      <div class="search-box">
+        <input type="text" id="search-input" class="search-input" placeholder="Search city or landmark…" autocomplete="off">
+        <button class="icon-btn" id="btn-search-close" aria-label="Close search">&times;</button>
+      </div>
+      <div class="search-results" id="search-results"></div>
+    </div>
 
     <!-- AI headline ticker: one-line rolling summary of the most dangerous nearby storm -->
     <div class="ai-ticker" id="ai-ticker" hidden>

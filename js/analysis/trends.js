@@ -106,3 +106,17 @@ export function isRapidlyIntensifying(cellId) {
   const t = stormTrend(cellId);
   return t.composite > 1.2;
 }
+
+/**
+ * Lifecycle stage from sample count (age proxy) + trend:
+ * 'newborn' (just detected) -> 'growing' (strengthening) -> 'mature'
+ * (steady) -> 'weakening'. A storm can also re-enter 'growing' after a
+ * steady patch, so this reflects current trend, not a one-way state machine.
+ */
+export function lifecycleStage(cellId, trend) {
+  const arr = getHistory(cellId);
+  if (arr.length <= 2) return 'newborn';
+  if (trend.label === 'strengthening') return 'growing';
+  if (trend.label === 'weakening') return 'weakening';
+  return 'mature';
+}

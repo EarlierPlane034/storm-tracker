@@ -1,6 +1,21 @@
 /** Shared small utilities: geo math, formatting, DOM helpers. */
+import { settings } from './storage.js';
 
 const R_EARTH_KM = 6371;
+
+// Default severity ramp relies on red/green separation; the colorblind
+// palette instead uses a blue->yellow->orange->purple ramp so it doesn't
+// depend on red-green discrimination (the most common form).
+const SEVERITY_COLORS = {
+  default:    ['#64748b', '#34d399', '#fbbf24', '#fb923c', '#ef4444'],
+  colorblind: ['#64748b', '#0072B2', '#F0E442', '#E69F00', '#CC79A7'],
+};
+
+/** Marker/pill color for a 0-100 severity score, colorblind-safe when enabled. */
+export function severityColor(score) {
+  const ramp = SEVERITY_COLORS[settings.colorblindMode ? 'colorblind' : 'default'];
+  return score >= 81 ? ramp[4] : score >= 61 ? ramp[3] : score >= 41 ? ramp[2] : score >= 21 ? ramp[1] : ramp[0];
+}
 
 /** Great-circle distance in km. */
 export function haversineKm(lat1, lon1, lat2, lon2) {

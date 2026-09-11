@@ -34,6 +34,7 @@ import { Week3FeaturesPanel } from './ui/week3FeaturesPanel.js';
 import { FeatureDashboard } from './ui/featureDashboard.js';
 import { showQuickStartGuide } from './ui/quickStartGuide.js';
 import { recordStormMetrics } from './analysis/stormTrendAnalysis.js';
+import { searchCities } from './data/cities.js';
 
 let mapView, radar, advancedPanel, week3Panel;
 let analyses = [];
@@ -58,7 +59,13 @@ async function main() {
   await whenLeafletReady();
 
   // ---- Map + radar ---------------------------------------------------------
-  mapView = new MapView('map', { onCellTap: (a) => openStormSheet(a) });
+  mapView = new MapView('map', {
+    onCellTap: (a) => openStormSheet(a),
+    onSetManualLocation: (lat, lon) => {
+      geo.setManualLocation(lat, lon);
+      showToast('📍 Location set manually. Distances and arrival times now use this point.');
+    },
+  });
   radar = new RadarController(mapView.map, {
     onFrameChange: updateAnimBar,
     onProductChange: (prod) => { renderProductRail(); renderLegend(prod); },
@@ -160,6 +167,9 @@ async function main() {
   });
   // Ask for location lazily on first launch (user gesture not required for prompt on most browsers).
   geo.startWatching({ onError: () => { /* silent on startup; button re-tries with message */ } });
+
+  wireLocationSearch();
+  wireKeyboardShortcuts();
 
   // ---- Status chrome --------------------------------------------------------------
   onFeedHealth((state) => {
@@ -584,6 +594,7 @@ async function loadTornadoHistory() {
 /** Dim red night theme (Settings → Radar → Night mode). */
 function applyTheme() {
   document.body.classList.toggle('night', !!settings.nightMode);
+  document.body.classList.toggle('colorblind', !!settings.colorblindMode);
 }
 
 /* ---------------- Chase mode: HUD + screen wake lock ---------------- */
@@ -776,14 +787,80 @@ function syncTabbarHeight() {
   document.getElementById('app').style.setProperty('--tabbar-h', `${h}px`);
 }
 
+/** City/landmark search: type-ahead over a static list, tap a result to fly there. */
+function wireLocationSearch() {
+  const overlay = document.getElementById('search-overlay');
+  const input = document.getElementById('search-input');
+  const results = document.getElementById('search-results');
+
+  const open = () => {
+    overlay.hidden = false;
+    input.value = '';
+    results.innerHTML = '';
+    input.focus();
+  };
+  const close = () => { overlay.hidden = true; };
+
+  const renderResults = (matches) => {
+    results.innerHTML = '';
+    if (!matches.length) {
+      if (input.value.trim()) {
+        results.appendChild(el('div', { class: 'muted', style: 'padding:10px', text: 'No matches.' }));
+      }
+      return;
+    }
+    for (const c of matches) {
+      const row = el('button', { class: 'search-result', text: c.name });
+      row.addEventListener('click', () => {
+        mapView.map.flyTo([c.lat, c.lon], 9, { duration: 0.8 });
+        close();
+      });
+      results.appendChild(row);
+    }
+  };
+
+  document.getElementById('btn-search').addEventListener('click', open);
+  document.getElementById('btn-search-close').addEventListener('click', close);
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+  input.addEventListener('input', () => renderResults(searchCities(input.value)));
+  input.addEventListener('keydown', (e) => { if (e.key === 'Escape') close(); });
+}
+
+/** Desktop keyboard shortcuts. Disabled while typing in any input/textarea. */
+function wireKeyboardShortcuts() {
+  document.addEventListener('keydown', (e) => {
+    if (['INPUT', 'TEXTAREA'].includes(e.target.tagName) || e.target.isContentEditable) return;
+    if (e.key === ' ' || e.key.toLowerCase() === 'p') {
+      e.preventDefault();
+      document.getElementById('btn-play')?.click();
+    } else if (e.key.toLowerCase() === 'z') {
+      mapView?.map.setView([37.5, -96.5], 5);
+    } else if (e.key === 'Escape') {
+      document.querySelector('.tab[data-panel="map"]')?.click();
+    } else if (/^[1-9]$/.test(e.key)) {
+      const idx = Number(e.key) - 1;
+      if (analyses[idx]) selectStorm(analyses[idx]);
+    }
+  });
+}
+
 function wireChrome() {
   const panels = ['storms', 'alerts', 'reports', 'analysis', 'week3', 'ai', 'settings', 'about', 'features'];
   const tabs = document.querySelectorAll('.tab');
 
+  const PANEL_CLOSE_MS = 180;
   const showPanel = (name) => {
     for (const p of [...panels, 'layers']) {
-      document.getElementById(`panel-${p}`)?.hidden !== undefined && (document.getElementById(`panel-${p}`).hidden = p !== name);
+      const elp = document.getElementById(`panel-${p}`);
+      if (!elp || p === name) continue;
+      // Fade+slide out instead of an instant cut, then actually hide.
+      if (!elp.hidden) {
+        elp.classList.add('closing');
+        setTimeout(() => { elp.hidden = true; elp.classList.remove('closing'); }, PANEL_CLOSE_MS);
+      }
     }
+    const target = name ? document.getElementById(`panel-${name}`) : null;
+    if (target) { target.classList.remove('closing'); target.hidden = false; }
     tabs.forEach((t) => t.classList.toggle('active', t.dataset.panel === (name || 'map')));
     if (name === 'settings') rerenderSettings();
     if (name === 'features') renderFeaturesPanel();
@@ -844,6 +921,7 @@ function wireChrome() {
         return;
       }
       if (path === 'nightMode') applyTheme();
+      if (path === 'colorblindMode') { applyTheme(); mapView.renderCells(visibleAnalyses(geo.getLocation())); }
       if (path === 'chaseMode') applyChaseMode();
       if (path === 'dataSaver') {
         // One switch adjusts the cadence knobs for weak-signal chasing.

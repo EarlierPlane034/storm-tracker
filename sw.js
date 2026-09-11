@@ -11,7 +11,7 @@
  *    cached tiles are served only when offline.
  * ========================================================================== */
 
-const VERSION = 'stormlens-v22';
+const VERSION = 'stormlens-v23';
 const SHELL_CACHE = `${VERSION}-shell`;
 const DATA_CACHE = `${VERSION}-data`;
 const TILE_CACHE = `${VERSION}-tiles`;
@@ -27,6 +27,7 @@ const SHELL_ASSETS = [
   './js/utils.js',
   './js/storage.js',
   './js/location.js',
+  './js/data/cities.js',
   './js/api/client.js',
   './js/api/nws.js',
   './js/api/iem.js',
@@ -94,6 +95,22 @@ async function trimCache(name, limit) {
   }
 }
 
+const TILE_MAX_AGE_MS = 2 * 60 * 60 * 1000; // radar/basemap tiles older than this are useless offline fallbacks
+
+/** Drop cached tiles past their max age, using each response's Date header. */
+async function expireOldTiles(name, maxAgeMs) {
+  const cache = await caches.open(name);
+  const keys = await cache.keys();
+  const now = Date.now();
+  await Promise.all(keys.map(async (req) => {
+    const resp = await cache.match(req);
+    const dateHeader = resp?.headers.get('date');
+    if (dateHeader && now - new Date(dateHeader).getTime() > maxAgeMs) {
+      await cache.delete(req);
+    }
+  }));
+}
+
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
   if (event.request.method !== 'GET') return;
@@ -122,7 +139,10 @@ self.addEventListener('fetch', (event) => {
           if (resp.ok) {
             const copy = resp.clone();
             caches.open(TILE_CACHE).then((c) => c.put(event.request, copy))
-              .then(() => trimCache(TILE_CACHE, TILE_LIMIT));
+              .then(() => trimCache(TILE_CACHE, TILE_LIMIT))
+              // Full-cache age sweep is relatively expensive — only run it
+              // occasionally, not on every single tile write.
+              .then(() => { if (Math.random() < 0.02) expireOldTiles(TILE_CACHE, TILE_MAX_AGE_MS); });
           }
           return resp;
         })

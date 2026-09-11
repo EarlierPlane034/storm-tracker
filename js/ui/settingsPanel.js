@@ -54,6 +54,7 @@ export function renderSettings({ onChanged, onRequestNotifications, onRouteCheck
   selectRow('Color table', null, 'colorTable', [['classic', 'Classic'], ['enhanced', 'Enhanced contrast'], ['grayscale', 'Grayscale']]);
   toggleRow('Radar smoothing', 'Softens pixel edges', 'radarSmoothing');
   toggleRow('Night mode', 'Dim red theme for driving in the dark', 'nightMode');
+  toggleRow('Color-blind friendly colors', 'Blue/yellow/orange/purple severity scale instead of green/red', 'colorblindMode');
 
   section('Storm chasing');
   toggleRow('Chase mode', 'On-map HUD with bearing/ETA to your target storm, your speed, and keeps the screen awake', 'chaseMode');

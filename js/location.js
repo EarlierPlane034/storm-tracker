@@ -41,8 +41,8 @@ export function startWatching({ onError } = {}) {
     },
     (err) => {
       onError?.(err.code === err.PERMISSION_DENIED
-        ? 'Location permission denied. Distance and arrival features are disabled — you can still browse radar anywhere.'
-        : 'Unable to determine location right now.');
+        ? 'Location permission denied. Long-press anywhere on the map to set your location manually.'
+        : 'Unable to determine location right now. Long-press the map to set it manually.');
     },
     { enableHighAccuracy: true, maximumAge: 30_000, timeout: 20_000 },
   );
@@ -53,4 +53,11 @@ export function stopWatching() {
     navigator.geolocation.clearWatch(watchId);
     watchId = null;
   }
+}
+
+/** Manual override when GPS is denied/unavailable — user long-presses the
+ * map to drop a pin instead. Feeds the same subscribers as a real GPS fix. */
+export function setManualLocation(lat, lon) {
+  current = { lat, lon, accuracyM: null, speedMps: null, headingDeg: null, at: Date.now(), manual: true };
+  listeners.forEach((fn) => fn(current));
 }

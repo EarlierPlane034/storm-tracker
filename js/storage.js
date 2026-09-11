@@ -13,6 +13,7 @@ export const DEFAULT_SETTINGS = {
   radarOpacity: CONFIG.radar.defaultOpacity,
   radarSmoothing: true,         // CSS-level smoothing of radar tiles
   nightMode: false,             // dim red theme for night driving
+  colorblindMode: false,        // blue/yellow/orange severity palette instead of red/green
   chaseMode: false,             // chaser HUD + screen wake lock
   followMe: false,              // auto-center the map on GPS updates
   voiceAlerts: false,           // speak dangerous alerts (works over CarPlay/BT audio)

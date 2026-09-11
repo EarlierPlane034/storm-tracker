@@ -4,6 +4,7 @@
  */
 import { el, escapeHtml, fmtDistance, fmtSpeed, fmtHailSize, compassDir, fmtRelTime } from '../utils.js';
 import { settings } from '../storage.js';
+import { CONFIG } from '../config.js';
 import { getHistory } from '../analysis/trends.js';
 import { stormSummary, tornadoStatement, changeExplanation, technicalReadout } from '../analysis/narrative.js';
 import { attachTrendInteraction, SERIES_COLORS } from './trendChart.js';
@@ -15,6 +16,11 @@ export const scoreClass = (s) =>
   s >= 81 ? 'score-extreme' : s >= 61 ? 'score-high' : s >= 41 ? 'score-elev' : s >= 21 ? 'score-low' : 'score-verylow';
 
 const riskClass = (s) => (s >= 61 ? 'on-high' : s >= 35 ? 'on-med' : s >= 15 ? 'on-low' : '');
+
+const LIFECYCLE_LABEL = { newborn: '🆕 Newborn', growing: '📈 Growing', mature: '⬤ Mature', weakening: '📉 Weakening' };
+
+/** True once a scan's timestamp is old enough that the UI should flag it. */
+const isStale = (valid) => !!valid && Date.now() - valid.getTime() > CONFIG.refresh.staleAfterMs;
 
 export function renderStormList(analyses, { onSelect, hiddenCount = 0 }) {
   const host = document.getElementById('storm-list');
@@ -42,8 +48,9 @@ export function renderStormList(analyses, { onSelect, hiddenCount = 0 }) {
 
     const head = el('div', { class: 'storm-card-head' });
     head.appendChild(el('div', {}, [
-      el('div', { class: 'storm-id', text: `#${a.rank}  ${c.id}` }),
-      el('div', { class: 'storm-meta', text: `${a.type.label} · ${motionText(c)}${a.userRel ? ` · ${fmtDistance(a.userRel.distKm, settings.units)} away` : ''}` }),
+      el('div', { class: 'storm-id', text: `#${a.rank}  ${c.id}${a.rapidIntensification ? ' ⚡' : ''}` }),
+      el('div', { class: 'storm-meta', text: `${a.type.label} · ${LIFECYCLE_LABEL[a.lifecycle] || ''} · ${motionText(c)}${a.userRel ? ` · ${fmtDistance(a.userRel.distKm, settings.units)} away` : ''}` }),
+      isStale(c.valid) ? el('div', { class: 'stale-tag', text: `⏱ stale — last scan ${fmtRelTime(c.valid)}` }) : null,
     ]));
     const trendArrow = a.trend.label === 'strengthening' ? '▲' : a.trend.label === 'weakening' ? '▼' : '—';
     const trendCls = a.trend.label === 'strengthening' ? 'trend-up' : a.trend.label === 'weakening' ? 'trend-down' : 'trend-flat';
@@ -113,7 +120,10 @@ export function openStormSheet(a) {
   body.appendChild(el('div', { class: 'storm-card-head' }, [
     el('div', {}, [
       el('div', { class: 'storm-id', style: 'font-size:16px', text: c.id }),
-      el('div', { class: 'storm-meta', text: `${a.type.label} · scanned ${c.valid ? fmtRelTime(c.valid) : 'now'} · confidence ${a.confidence}` }),
+      el('div', {
+        class: `storm-meta${isStale(c.valid) ? ' stale-tag' : ''}`,
+        text: `${a.type.label} · scanned ${c.valid ? fmtRelTime(c.valid) : 'now'}${isStale(c.valid) ? ' (stale)' : ''} · confidence ${a.confidence}`,
+      }),
     ]),
     el('div', { style: 'display:flex;align-items:center;gap:8px' }, [
       el('button', { class: 'icon-btn', text: '📤', 'aria-label': 'Share storm', onclick: () => shareStorm(a) }),
@@ -175,7 +185,11 @@ export function openStormSheet(a) {
   add('Rotation', c.tvs ? 'TVS!' : c.meso > 0 ? `meso r${c.meso}` : 'none');
   add('Persistence', `${a.persistence} scans`);
   add('Severe chance', `${a.severeScore}%-ile`);
+  add('Lifecycle', LIFECYCLE_LABEL[a.lifecycle] || a.lifecycle);
   add('Radar', c.site);
+  if (a.rapidIntensification) {
+    add('⚡ Alert', 'Rapidly intensifying');
+  }
   body.appendChild(stats);
 
   // Active warnings on this storm.
@@ -287,7 +301,11 @@ async function shareStorm(a) {
 /** Wire up sheet dismissal once. */
 export function initStormSheet() {
   const sheet = document.getElementById('storm-sheet');
-  const close = () => { sheet.hidden = true; sheetHooks.ghost?.(null); };
+  const close = () => {
+    sheetHooks.ghost?.(null);
+    sheet.classList.add('closing');
+    setTimeout(() => { sheet.hidden = true; sheet.classList.remove('closing'); }, 180);
+  };
   sheet.querySelector('.sheet-grab').addEventListener('click', close);
   let startY = null;
   sheet.addEventListener('touchstart', (e) => { startY = e.touches[0].clientY; }, { passive: true });

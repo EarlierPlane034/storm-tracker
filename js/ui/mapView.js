@@ -5,7 +5,7 @@
  */
 import { CONFIG } from '../config.js';
 import { settings } from '../storage.js';
-import { destinationPoint, fmtSpeed, compassDir, haversineKm, bearingDeg, fmtDistance } from '../utils.js';
+import { destinationPoint, fmtSpeed, compassDir, haversineKm, bearingDeg, fmtDistance, severityColor } from '../utils.js';
 import { initMesocycloneLayer, renderMesocyclones } from './mesocycloneLayer.js';
 
 const ALERT_STYLE = {
@@ -24,8 +24,9 @@ const SPC_STYLE = {
 };
 
 export class MapView {
-  constructor(containerId, { onCellTap } = {}) {
+  constructor(containerId, { onCellTap, onSetManualLocation } = {}) {
     this.onCellTap = onCellTap || (() => {});
+    this.onSetManualLocation = onSetManualLocation || (() => {});
 
     this.map = L.map(containerId, {
       center: [37.5, -96.5], // CONUS
@@ -86,18 +87,29 @@ export class MapView {
     this.map.on('contextmenu', (e) => {
       const user = this._lastUser;
       const { lat, lng } = e.latlng;
-      let html;
       if (user) {
         const km = haversineKm(user.lat, user.lon, lat, lng);
         const brg = bearingDeg(user.lat, user.lon, lat, lng);
         const driveMin = Math.round((km / 88) * 60); // ~55 mph average
-        html = `<strong>${fmtDistance(km, settings.units)} ${compassDir(brg)}</strong> of you` +
+        const html = `<strong>${fmtDistance(km, settings.units)} ${compassDir(brg)}</strong> of you` +
           `<br>~${driveMin} min drive` +
           `<br><span style="font-family:monospace;font-size:10px">${lat.toFixed(4)}, ${lng.toFixed(4)}</span>`;
-      } else {
-        html = `<span style="font-family:monospace">${lat.toFixed(4)}, ${lng.toFixed(4)}</span><br>Enable location (⌖) for distance/bearing.`;
+        L.popup({ closeButton: true }).setLatLng(e.latlng).setContent(html).openOn(this.map);
+        return;
       }
-      L.popup({ closeButton: true }).setLatLng(e.latlng).setContent(html).openOn(this.map);
+      // No GPS fix yet (denied/unavailable) — offer to set this point as
+      // a manual location override instead of only showing coordinates.
+      const container = document.createElement('div');
+      container.innerHTML = `<span style="font-family:monospace">${lat.toFixed(4)}, ${lng.toFixed(4)}</span><br>`;
+      const btn = document.createElement('button');
+      btn.textContent = '📍 Set as my location';
+      btn.className = 'popup-set-location-btn';
+      btn.onclick = () => {
+        this.onSetManualLocation(lat, lng);
+        this.map.closePopup();
+      };
+      container.appendChild(btn);
+      L.popup({ closeButton: true }).setLatLng(e.latlng).setContent(container).openOn(this.map);
     });
   }
 
@@ -162,7 +174,7 @@ export class MapView {
 
   setUserLocation(lat, lon, accuracyM) {
     this._lastUser = { lat, lon };
-    this.renderRangeRings(lat, lon);
+    this.renderRangeRings(lat, lon, this._lastAnalyses);
     if (!this.userMarker) {
       this.userMarker = L.circleMarker([lat, lon], {
         radius: 7, color: '#38bdf8', fillColor: '#38bdf8',
@@ -196,8 +208,11 @@ export class MapView {
     }, 8000);
   }
 
-  /** Classic radar-app range rings (25/50/100 mi) centered on the user. */
-  renderRangeRings(lat, lon) {
+  /**
+   * Classic radar-app range rings (25/50/100 mi) centered on the user, each
+   * labelled with how many currently-tracked storms fall inside it.
+   */
+  renderRangeRings(lat, lon, analyses) {
     this.groups.rangeRings.clearLayers();
     const isMetric = settings.units === 'metric';
     const rings = isMetric ? [40, 80, 160] : [40.2, 80.5, 160.9]; // km
@@ -207,12 +222,16 @@ export class MapView {
         radius: km * 1000, color: '#475569', weight: 1,
         fill: false, dashArray: '4 6', interactive: false,
       }));
+      const count = analyses
+        ? analyses.filter((a) => haversineKm(lat, lon, a.cell.lat, a.cell.lon) <= km).length
+        : null;
+      const countText = count != null ? ` · ${count} storm${count === 1 ? '' : 's'}` : '';
       // Label at the top of each ring.
       const top = destinationPoint(lat, lon, 0, km);
       this.groups.rangeRings.addLayer(L.marker(top, {
         icon: L.divIcon({
           className: '',
-          html: `<div style="font:600 9px monospace;color:#64748b;transform:translate(-50%,-100%)">${labels[i]}</div>`,
+          html: `<div style="font:600 9px monospace;color:#64748b;transform:translate(-50%,-100%);white-space:nowrap">${labels[i]}${countText}</div>`,
           iconSize: null,
         }),
         interactive: false,
@@ -393,20 +412,23 @@ export class MapView {
     this.groups.cells.clearLayers();
     this.groups.stormTracks.clearLayers();
     this.cellMarkers = []; // kept for time-matched loop playback
+    this._lastAnalyses = analyses;
+    if (this._lastUser) this.renderRangeRings(this._lastUser.lat, this._lastUser.lon, analyses);
 
     // Cap DOM markers on very active days; analyses arrive sorted most
     // dangerous first, so the cap only ever drops the weakest cells.
     for (const a of analyses.slice(0, 100)) {
       const c = a.cell;
-      const color = a.severeScore >= 81 ? '#ef4444' : a.severeScore >= 61 ? '#fb923c'
-        : a.severeScore >= 41 ? '#fbbf24' : a.severeScore >= 21 ? '#34d399' : '#64748b';
+      const color = severityColor(a.severeScore);
       const size = a.severeScore >= 61 ? 30 : a.severeScore >= 41 ? 26 : 22;
       const pulse = a.tornado.score >= 41 ? ' pulse' : '';
+      const riBadge = a.rapidIntensification
+        ? '<div class="ri-badge" title="Rapidly intensifying">⚡</div>' : '';
 
       const marker = L.marker([c.lat, c.lon], {
         icon: L.divIcon({
           className: '',
-          html: `<div class="cell-marker${pulse}" style="width:${size}px;height:${size}px;background:${color}">${a.severeScore}</div>`,
+          html: `<div class="cell-marker${pulse}" style="width:${size}px;height:${size}px;background:${color}">${a.severeScore}${riBadge}</div>`,
           iconSize: [size, size],
           iconAnchor: [size / 2, size / 2],
         }),
