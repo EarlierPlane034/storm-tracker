@@ -5,8 +5,6 @@
  * heat maps and indicators on the Leaflet map for visual analysis.
  */
 
-import L from 'https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet-es.js';
-
 export class EnvironmentalOverlay {
   constructor(map) {
     this.map = map;

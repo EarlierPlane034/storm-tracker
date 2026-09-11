@@ -9,7 +9,7 @@
  */
 
 import { compareStorms } from '../ai/stormScoringV2.js';
-import { toasts } from './toasts.js';
+import { showToast } from './toasts.js';
 
 let selectedStorms = [];
 const MAX_COMPARISONS = 3;
@@ -409,14 +409,14 @@ function attachComparisonEvents() {
 export function selectStormForComparison(storm) {
   if (selectedStorms.find(s => s.id === storm.id)) {
     selectedStorms = selectedStorms.filter(s => s.id !== storm.id);
-    toasts.show(`Removed ${storm.type.label} from comparison`, 'info', 2000);
+    showToast(`Removed ${storm.type.label} from comparison`, { level: 'info', ttlMs: 2000 });
   } else {
     if (selectedStorms.length >= MAX_COMPARISONS) {
-      toasts.show(`Max ${MAX_COMPARISONS} storms to compare`, 'warn', 2000);
+      showToast(`Max ${MAX_COMPARISONS} storms to compare`, { level: 'warn', ttlMs: 2000 });
       return;
     }
     selectedStorms.push(storm);
-    toasts.show(`Added ${storm.type.label} to comparison`, 'success', 2000);
+    showToast(`Added ${storm.type.label} to comparison`, { level: 'info', ttlMs: 2000 });
   }
 
   if (selectedStorms.length > 0) {

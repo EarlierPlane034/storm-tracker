@@ -7,8 +7,6 @@
  * - Strength indicators (color + size)
  */
 
-import L from 'https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet-es.js';
-
 const MESO_LAYER_NAME = 'Mesocyclones';
 let mesoMarkers = new Map();
 let mesoTrailLines = new Map();

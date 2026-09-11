@@ -12,10 +12,13 @@
  * 8. Educational & Training
  */
 
-import { StormPredictionML } from '../ai/stormPredictionML.js';
+import {
+  predictHailProbability, predictTornadoGenesis, classifyStormType,
+  predictStormLongevity, predictRapidIntensification, scoreStormSimilarity,
+} from '../ai/stormPredictionML.js';
 import { SpotterReportManager, ChaserLeaderboard, SharedStormTracking } from '../social/communityFeatures.js';
 import { predictHailSwath, predictTornadoTouchdownZone, predictSupercellSplitting, forecastReflectivityTrends, generateForecastNarrative } from '../forecast/advancedForecasting.js';
-import { VoiceNarrator, AudioAlerts, VoiceCommands, generatePodcastBriefing } from '../audio/voiceAlerts.js';
+import { VoiceNarrator, AudioAlerts, VoiceCommands, generateStormBriefing } from '../audio/voiceAlerts.js';
 import { ChaseRouter, LightningProximityAlert, SafeHavenFinder, ChaseDecisionScore } from '../chase/chaseSafety.js';
 import { StormDatabase, StormReplay } from '../data/stormDatabase.js';
 import { StormStructureVisualizer, MultiStormComparison, ForecastGraph } from '../ui/advancedCharting.js';
@@ -29,7 +32,6 @@ export class Week3FeaturesPanel {
     this.activeTab = 'ml-predictions';
 
     // Feature instances
-    this.mlPredictor = new StormPredictionML();
     this.spotterReportManager = new SpotterReportManager();
     this.chaserLeaderboard = new ChaserLeaderboard();
     this.sharedTracking = new SharedStormTracking();
@@ -47,6 +49,7 @@ export class Week3FeaturesPanel {
 
     this.selectedStorm = null;
     this.selectedStorms = [];
+    this.selectedAnalyses = [];
 
     this.initialize();
   }
@@ -151,29 +154,30 @@ export class Week3FeaturesPanel {
       return;
     }
 
-    const hailProb = this.mlPredictor.predictHailProbability(this.selectedStorm);
-    const tornadoGen = this.mlPredictor.predictTornadoGenesis(this.selectedStorm);
-    const stormType = this.mlPredictor.classifyStormType(this.selectedStorm);
-    const longevity = this.mlPredictor.predictStormLongevity(this.selectedStorm);
-    const intensification = this.mlPredictor.detectRapidIntensification(this.selectedStorm);
-    const similarity = this.mlPredictor.stormSimilarityScorer(this.selectedStorm, this.selectedStorms[0] || null);
+    const env = this.selectedStormEnv || {};
+    const hailProb = predictHailProbability(this.selectedStorm, env);
+    const tornadoGen = predictTornadoGenesis(this.selectedStorm, env);
+    const stormType = classifyStormType(this.selectedStorm, env, {});
+    const longevity = predictStormLongevity(this.selectedStorm, env);
+    const intensification = predictRapidIntensification(this.selectedStorm, this.priorStormMetrics || null);
+    const similarity = scoreStormSimilarity(this.selectedStorm, this.selectedStorms[1] || null);
 
     container.innerHTML = `
       <div class="ml-predictions">
         <div class="prediction-card">
           <div class="prediction-title">Hail Probability</div>
           <div class="prediction-bar">
-            <div class="prediction-fill" style="width: ${hailProb.probability}%"></div>
+            <div class="prediction-fill" style="width: ${hailProb}%"></div>
           </div>
-          <div class="prediction-text">${hailProb.probability}% chance of hail</div>
+          <div class="prediction-text">${Math.round(hailProb)}% chance of hail</div>
         </div>
 
         <div class="prediction-card">
           <div class="prediction-title">Tornado Genesis Risk</div>
           <div class="prediction-bar">
-            <div class="prediction-fill" style="width: ${tornadoGen.probability}%"></div>
+            <div class="prediction-fill" style="width: ${tornadoGen}%"></div>
           </div>
-          <div class="prediction-text">${tornadoGen.probability}% chance of tornado development</div>
+          <div class="prediction-text">${Math.round(tornadoGen)}% chance of tornado development</div>
         </div>
 
         <div class="prediction-card">
@@ -183,17 +187,17 @@ export class Week3FeaturesPanel {
 
         <div class="prediction-card">
           <div class="prediction-title">Expected Longevity</div>
-          <div class="prediction-text">${longevity.minutes} minutes · ${longevity.phase}</div>
+          <div class="prediction-text">${longevity} minutes</div>
         </div>
 
         <div class="prediction-card">
           <div class="prediction-title">Rapid Intensification</div>
-          <div class="prediction-text">${intensification.isIntensifying ? '🔴 YES — Rapid growth detected' : '🟢 No rapid intensification'}</div>
+          <div class="prediction-text">${intensification.willIntensify ? '🔴 YES — Rapid growth detected' : '🟢 No rapid intensification'}</div>
         </div>
 
         <div class="prediction-card">
           <div class="prediction-title">Storm Similarity</div>
-          <div class="prediction-text">Similarity score: ${similarity.score}%</div>
+          <div class="prediction-text">Similarity score: ${similarity}%</div>
         </div>
       </div>
     `;
@@ -344,7 +348,7 @@ export class Week3FeaturesPanel {
     });
 
     this.container?.querySelector('#btn-podcast')?.addEventListener('click', () => {
-      const briefing = generatePodcastBriefing(this.selectedStorms);
+      const briefing = generateStormBriefing(this.selectedAnalyses || []);
       this.voiceNarrator.speak(briefing);
       document.getElementById('podcast-info').innerHTML = `<div class="muted">Now playing: ${briefing.substring(0, 80)}...</div>`;
     });
@@ -586,6 +590,7 @@ export class Week3FeaturesPanel {
   selectStorm(analysis) {
     this.selectedStorm = analysis.cell;
     this.selectedStorms = [analysis.cell, ...this.selectedStorms].slice(0, 3);
+    this.selectedAnalyses = [analysis, ...(this.selectedAnalyses || [])].slice(0, 3);
 
     // Rerender the currently active tab
     if (this.activeTab !== 'education' && this.activeTab !== 'community') {
