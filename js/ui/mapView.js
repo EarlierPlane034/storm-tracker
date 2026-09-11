@@ -6,6 +6,7 @@
 import { CONFIG } from '../config.js';
 import { settings } from '../storage.js';
 import { destinationPoint, fmtSpeed, compassDir, haversineKm, bearingDeg, fmtDistance } from '../utils.js';
+import { initMesocycloneLayer, renderMesocyclones } from './mesocycloneLayer.js';
 
 const ALERT_STYLE = {
   'tor-warning': { color: '#ef4444', weight: 2.5, fillOpacity: 0.12 },
@@ -77,6 +78,9 @@ export class MapView {
       rangeRings: L.layerGroup(),
     };
     this.syncLayerVisibility();
+
+    // Initialize mesocyclone layer
+    initMesocycloneLayer(this.map);
 
     this.userMarker = null;
 
@@ -402,6 +406,9 @@ export class MapView {
         line.bindTooltip(`moving ${compassDir(c.moveDirDeg)} at ${fmtSpeed(c.moveSpeedKts, settings.units)}`);
       }
     }
+
+    // Render mesocyclones for all storms
+    renderMesocyclones(analyses, this.map);
   }
 }
 
