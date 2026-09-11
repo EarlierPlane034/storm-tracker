@@ -237,9 +237,45 @@ html, body {
 }
 @keyframes slide-up { from { transform: translateY(24px); opacity: 0; } to { transform: none; opacity: 1; } }
 
+/* Ensure all Leaflet overlays and canvases render cleanly */
+.leaflet-overlay-pane canvas, .leaflet-shadow-pane, .leaflet-marker-shadow {
+  display: block !important;
+}
+
+/* Leaflet popup styling - prevent black boxes */
+.leaflet-popup-content-wrapper {
+  background: rgba(18, 24, 33, 0.95) !important;
+  border: 1px solid rgba(100, 150, 255, 0.3) !important;
+  border-radius: 8px !important;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.4) !important;
+}
+
+.leaflet-popup-content {
+  color: #e5eaf0 !important;
+  margin: 0 !important;
+}
+
+.leaflet-popup-tip {
+  background: rgba(18, 24, 33, 0.95) !important;
+  border: 1px solid rgba(100, 150, 255, 0.3) !important;
+}
+
+.leaflet-container .leaflet-popup-closebutton {
+  color: #e5eaf0 !important;
+}
+
+/* Ensure map background is clear */
+#map { background: #05070a !important; }
+
 /* `display:flex` above would defeat the hidden attribute — restore it. */
 .panel[hidden], .sheet[hidden], .ai-ticker[hidden],
-.legend[hidden], .gps-chip[hidden], .tab-badge[hidden] { display: none; }
+.legend[hidden], .gps-chip[hidden], .tab-badge[hidden] {
+  display: none !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+  position: absolute !important;
+  opacity: 0 !important;
+}
 
 .panel-head {
   display: flex; align-items: center; justify-content: space-between;
