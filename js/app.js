@@ -4,8 +4,8 @@
  */
 import { CONFIG } from './config.js';
 import { settings, setSetting } from './storage.js';
-import { el, fmtTimeUTC, fmtDistance, debounce } from './utils.js';
-import { onFeedHealth } from './api/client.js';
+import { el, fmtTimeUTC, fmtDistance, debounce, fmtRelTime } from './utils.js';
+import { onFeedHealth, getLastSuccessAt } from './api/client.js';
 import * as sources from './api/sources.js';
 import { RadarController } from './radar/radarController.js';
 import { MapView } from './ui/mapView.js';
@@ -175,10 +175,24 @@ async function main() {
   wireKeyboardShortcuts();
 
   // ---- Status chrome --------------------------------------------------------------
+  let lastFeedState = 'ok';
   onFeedHealth((state) => {
     const dot = document.getElementById('net-dot');
     dot.className = `net-dot ${state === 'ok' ? '' : state}`.trim();
+    // Edge-triggered (only on the transition, not every 15s poll) — the
+    // dot's color alone doesn't explain itself, especially on touch
+    // devices where there's no hover to read its title tooltip.
+    if (state !== 'ok' && state !== lastFeedState) {
+      const age = fmtRelTime(new Date(getLastSuccessAt()));
+      showToast(
+        state === 'offline'
+          ? `📡 Offline — showing the last data StormLens fetched (${age}). It'll refresh automatically once you're back online.`
+          : `📡 Connection is slow — data on screen is from ${age}.`,
+        { level: 'warn', ttlMs: 10_000 });
+    }
+    lastFeedState = state;
   });
+  wirePowerAwareness();
   setInterval(() => {
     document.getElementById('data-clock').textContent = fmtTimeUTC(new Date());
   }, 1000);
@@ -887,6 +901,47 @@ function wireKeyboardShortcuts() {
       if (analyses[idx]) selectStorm(analyses[idx]);
     }
   });
+}
+
+/**
+ * Battery + connection awareness. Deliberately not a permanent topbar
+ * widget (the status bar is already tight on 390px phones) — instead
+ * updates the existing net-dot's tooltip and nudges toward Data Saver
+ * only when it would actually help (low battery, not charging; a slow
+ * connection), once per session so it isn't repetitive.
+ */
+async function wirePowerAwareness() {
+  const dot = document.getElementById('net-dot');
+  let batterySuggested = false;
+
+  if (navigator.getBattery) {
+    try {
+      const battery = await navigator.getBattery();
+      const checkLevel = () => {
+        if (!batterySuggested && !battery.charging && battery.level < 0.2 && !settings.dataSaver) {
+          batterySuggested = true;
+          showToast(`🔋 Battery at ${Math.round(battery.level * 100)}% — Settings → Data saver slows refresh to stretch it.`, { level: 'warn', ttlMs: 10_000 });
+        }
+      };
+      checkLevel();
+      battery.addEventListener('levelchange', checkLevel);
+      battery.addEventListener('chargingchange', checkLevel);
+    } catch { /* Battery Status API blocked/unsupported — skip silently */ }
+  }
+
+  const conn = navigator.connection;
+  if (conn) {
+    let connSuggested = false;
+    const updateConn = () => {
+      dot.title = `Data feed status — connection: ${conn.effectiveType || 'unknown'}`;
+      if (!connSuggested && !settings.dataSaver && ['slow-2g', '2g'].includes(conn.effectiveType)) {
+        connSuggested = true;
+        showToast('📶 Slow connection detected — Settings → Data saver reduces refresh frequency.', { level: 'warn', ttlMs: 10_000 });
+      }
+    };
+    updateConn();
+    conn.addEventListener('change', updateConn);
+  }
 }
 
 /** Weather term glossary: tap 📖, search or browse plain-English definitions. */

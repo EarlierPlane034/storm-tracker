@@ -13,6 +13,12 @@ export function onFeedHealth(fn) {
   healthListeners.add(fn);
 }
 
+/** When any data source last successfully refreshed — lets the UI say how
+ * old what you're looking at actually is, not just "offline". */
+export function getLastSuccessAt() {
+  return lastSuccessAt;
+}
+
 function reportHealth() {
   const state = !navigator.onLine || consecutiveFailures >= 3
     ? 'offline'

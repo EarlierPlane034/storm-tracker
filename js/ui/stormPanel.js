@@ -3,7 +3,7 @@
  * detail sheet with full stats, AI narrative, tornado meter and trend charts.
  */
 import { el, escapeHtml, fmtDistance, fmtSpeed, fmtHailSize, compassDir, fmtRelTime, severityColor, downloadFile } from '../utils.js';
-import { settings } from '../storage.js';
+import { settings, setSetting } from '../storage.js';
 import { CONFIG } from '../config.js';
 import { getHistory } from '../analysis/trends.js';
 import { stormSummary, tornadoStatement, changeExplanation, technicalReadout } from '../analysis/narrative.js';
@@ -19,6 +19,12 @@ const riskClass = (s) => (s >= 61 ? 'on-high' : s >= 35 ? 'on-med' : s >= 15 ? '
 
 const LIFECYCLE_LABEL = { newborn: '🆕 Newborn', growing: '📈 Growing', mature: '⬤ Mature', weakening: '📉 Weakening' };
 
+function toggleBookmark(stormId) {
+  const ids = settings.bookmarkedStormIds;
+  const next = ids.includes(stormId) ? ids.filter((id) => id !== stormId) : [...ids, stormId];
+  setSetting('bookmarkedStormIds', next);
+}
+
 /** True once a scan's timestamp is old enough that the UI should flag it. */
 const isStale = (valid) => !!valid && Date.now() - valid.getTime() > CONFIG.refresh.staleAfterMs;
 
@@ -31,6 +37,26 @@ export function renderStormList(analyses, { onSelect, hiddenCount = 0 }) {
     class: 'muted', style: 'margin: 0 2px 10px; font-size: 11.5px',
     text: 'The number on each storm here — and on each circle on the map — is its AI Severe Score (0–100: how dangerous the storm looks right now). Tap a storm to zoom the map to it and see full details.',
   }));
+
+  if (settings.bookmarkedStormIds.length) {
+    const pinnedCard = el('div', { class: 'card' });
+    pinnedCard.appendChild(el('h3', { text: '📌 Pinned storms' }));
+    for (const id of settings.bookmarkedStormIds) {
+      const live = analyses.find((a) => a.cell.id === id);
+      const row = el('div', { class: 'setting-row', style: 'padding:6px 0' });
+      row.appendChild(el('label', {
+        style: live ? 'cursor:pointer' : '',
+        text: live ? `${id} — score ${live.severeScore}, ${motionText(live.cell)}` : `${id} — no longer detected`,
+        onclick: live ? () => onSelect(live) : null,
+      }));
+      row.appendChild(el('button', {
+        class: 'icon-btn', text: '✕', 'aria-label': 'Unpin',
+        onclick: () => { toggleBookmark(id); renderStormList(analyses, { onSelect, hiddenCount }); },
+      }));
+      pinnedCard.appendChild(row);
+    }
+    host.appendChild(pinnedCard);
+  }
 
   if (!analyses.length) {
     host.appendChild(el('div', { class: 'card muted', text: 'No storm cells are currently being detected by the NEXRAD network in range. The AI keeps watching and will rank storms here the moment cells appear.' }));
@@ -70,6 +96,19 @@ export function renderStormList(analyses, { onSelect, hiddenCount = 0 }) {
       selectStormForComparison(a);
     });
     scoreSection.appendChild(compareBtn);
+
+    const isPinned = settings.bookmarkedStormIds.includes(c.id);
+    const pinBtn = el('button', {
+      class: 'storm-compare-btn',
+      text: isPinned ? '📌' : '📍',
+      title: isPinned ? 'Unpin storm' : 'Pin storm',
+    });
+    pinBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      toggleBookmark(c.id);
+      renderStormList(analyses, { onSelect, hiddenCount });
+    });
+    scoreSection.appendChild(pinBtn);
 
     head.appendChild(scoreSection);
     card.appendChild(head);

@@ -64,6 +64,7 @@ export const DEFAULT_SETTINGS = {
     satellite: false,
   },
   favorites: [],                // [{name, lat, lon}]
+  bookmarkedStormIds: [],        // storm cell IDs pinned during this session/day
   pushServerUrl: '',            // user's own Cloudflare push worker URL
   pushEnabled: false,           // background push registered
   showTechnical: false,         // AI: include technical explanation
