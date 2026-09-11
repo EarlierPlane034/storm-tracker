@@ -645,35 +645,37 @@ export class Week3FeaturesPanel {
       .panel-tabs {
         display: grid;
         grid-template-columns: repeat(4, 1fr);
-        gap: 4px;
-        padding: 8px;
-        background: rgba(255,255,255,0.02);
-        border-bottom: 1px solid rgba(100,150,255,0.1);
+        gap: 6px;
+        padding: 10px;
+        background: rgba(15, 20, 35, 0.9);
+        border-bottom: 2px solid rgba(100,150,255,0.3);
         overflow-x: auto;
         flex-shrink: 0;
       }
 
       .tab-btn {
-        padding: 8px;
-        border: 1px solid rgba(100,150,255,0.2);
-        background: rgba(20,20,30,0.8);
-        color: #a0aec0;
+        padding: 10px 8px;
+        border: 1.5px solid rgba(100,150,255,0.3);
+        background: rgba(30, 40, 60, 0.95);
+        color: #9ca3af;
         border-radius: 6px;
         cursor: pointer;
         font-size: 12px;
         transition: all 0.2s;
+        font-weight: 500;
       }
 
       .tab-btn.active {
-        background: rgba(100,150,255,0.3);
+        background: rgba(59, 130, 246, 0.25);
         color: #e5eaf0;
-        border-color: rgba(100,150,255,0.5);
+        border-color: rgba(100,150,255,0.7);
       }
 
       .panel-content {
         flex: 1;
         overflow-y: auto;
-        padding: 12px;
+        padding: 14px;
+        background: rgba(10, 15, 25, 0.8);
       }
 
       .tab-content {
@@ -687,22 +689,23 @@ export class Week3FeaturesPanel {
       .ml-predictions, .community-panel, .forecasting-panel, .voice-panel,
       .chase-safety-panel, .database-panel, .charts-panel, .education-panel {
         display: grid;
-        gap: 12px;
+        gap: 14px;
       }
 
       .prediction-card, .community-section, .forecast-card, .voice-card,
       .chase-card, .db-card, .chart-card, .edu-card {
-        background: rgba(100,150,255,0.08);
-        border: 1px solid rgba(100,150,255,0.2);
+        background: rgba(20, 30, 50, 0.95);
+        border: 1px solid rgba(100,150,255,0.4);
         border-radius: 8px;
-        padding: 12px;
+        padding: 14px;
       }
 
       .prediction-card h3, .community-section h3, .forecast-card h3,
       .voice-card h3, .chase-card h3, .db-card h3, .chart-card h3, .edu-card h3 {
-        margin: 0 0 8px 0;
+        margin: 0 0 12px 0;
         font-size: 14px;
         color: #e5eaf0;
+        font-weight: 600;
       }
 
       .prediction-bar {
@@ -732,10 +735,12 @@ export class Week3FeaturesPanel {
 
       .report-card, .leaderboard-row, .tracking-card, .shelter-card,
       .session-card, .lesson-card {
-        background: rgba(0,0,0,0.3);
-        padding: 8px;
+        background: rgba(25, 35, 55, 0.9);
+        padding: 10px;
         border-radius: 6px;
         font-size: 12px;
+        border: 1px solid rgba(100,150,255,0.15);
+        color: #d1d5db;
       }
 
       .muted {
@@ -743,26 +748,59 @@ export class Week3FeaturesPanel {
         font-size: 12px;
       }
 
+      .forecast-content, .chase-info, .metrics-grid, .seasonal-info, .game-stats {
+        color: #d1d5db;
+        font-size: 13px;
+        line-height: 1.6;
+      }
+
+      .metrics-grid {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 12px;
+      }
+
+      .metric {
+        background: rgba(59, 130, 246, 0.1);
+        padding: 12px;
+        border-radius: 6px;
+        text-align: center;
+      }
+
+      .metric-value {
+        font-size: 18px;
+        font-weight: bold;
+        color: #60a5fa;
+      }
+
+      .metric-label {
+        font-size: 12px;
+        color: #9ca3af;
+        margin-top: 4px;
+      }
+
       button.voice-btn, button.export-btn, button.lesson-btn, button.game-btn {
-        background: rgba(100,150,255,0.2);
-        border: 1px solid rgba(100,150,255,0.3);
+        background: rgba(59, 130, 246, 0.25);
+        border: 1.5px solid rgba(100,150,255,0.4);
         color: #e5eaf0;
-        padding: 8px 12px;
+        padding: 10px 14px;
         border-radius: 6px;
         cursor: pointer;
         font-size: 12px;
+        font-weight: 500;
         transition: all 0.2s;
       }
 
       button.voice-btn:hover, button.export-btn:hover, button.lesson-btn:hover, button.game-btn:hover {
-        background: rgba(100,150,255,0.4);
-        border-color: rgba(100,150,255,0.5);
+        background: rgba(59, 130, 246, 0.4);
+        border-color: rgba(100,150,255,0.6);
       }
 
       .chart-container {
-        height: 200px;
-        background: rgba(0,0,0,0.2);
+        height: 220px;
+        background: rgba(25, 35, 55, 0.85);
         border-radius: 6px;
+        border: 1px solid rgba(100,150,255,0.15);
       }
     `;
     document.head.appendChild(style);

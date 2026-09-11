@@ -356,10 +356,10 @@ export class AdvancedAnalysisPanel {
       }
 
       .stat-item {
-        background: rgba(100,150,255,0.1);
-        padding: 10px;
-        border-radius: 4px;
-        border: 1px solid rgba(100,150,255,0.2);
+        background: rgba(20, 30, 50, 0.9);
+        padding: 12px;
+        border-radius: 6px;
+        border: 1px solid rgba(100,150,255,0.3);
       }
 
       .stat-label {
@@ -375,11 +375,13 @@ export class AdvancedAnalysisPanel {
       }
 
       .env-param {
-        padding: 8px;
-        margin: 5px 0;
-        background: rgba(100,150,255,0.05);
-        border-left: 2px solid #38bdf8;
+        padding: 10px;
+        margin: 8px 0;
+        background: rgba(20, 30, 50, 0.85);
+        border-left: 3px solid #38bdf8;
+        border-radius: 4px;
         font-size: 12px;
+        color: #d1d5db;
       }
 
       .env-btn {
