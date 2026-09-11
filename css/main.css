@@ -339,14 +339,23 @@ canvas[style*="background: black"] {
 /* ---------- GPS chip ---------- */
 .gps-chip {
   position: absolute;
-  left: 50%; transform: translateX(-50%);
+  /* Left-anchored with a hard max-width, not centered — centering plus a
+     max-width doesn't reliably stop a wide box from reaching under the
+     right-anchored legend (both share the "how wide is the containing
+     block" ambiguity of absolute positioning); a plain left+max-width
+     box has no such ambiguity: it physically cannot pass its own left
+     edge + max-width, full stop. */
+  left: 10px;
   top: 10px;
+  max-width: calc(100vw - 200px); /* clears the legend's ~150-180px + margin */
   padding: 6px 14px;
   border-radius: 999px;
   background: var(--bg-overlay);
   border: 1px solid var(--border);
   font-size: 12px;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
   z-index: 1000;
 }
 .gps-chip strong { color: var(--warn); }
@@ -361,11 +370,22 @@ canvas[style*="background: black"] {
 }
 .tab {
   flex: 1;
+  min-width: 0; /* flex items default to min-width:auto, which resists shrinking
+                   below the text's natural width — that's what let tab labels
+                   overflow past the screen edge on iOS (San Francisco renders
+                   wider than the fallback font Linux/headless testing used). */
   position: relative;
   background: none; border: none;
   color: var(--text-dim);
-  font-size: 11.5px; font-weight: 600;
-  padding: 12px 2px;
+  font-size: 10px; font-weight: 600;
+  line-height: 1.2;
+  padding: 8px 1px;
+  /* Wrap to 2 lines rather than truncate with ellipsis — with 9 tabs on a
+     ~375px phone, "Reports Analy…" reads worse than a clean two-line
+     "Reports" / (next tab) "Analysis". */
+  white-space: normal;
+  word-break: break-word;
+  text-align: center;
   cursor: pointer;
 }
 .tab.active { color: var(--accent); }
