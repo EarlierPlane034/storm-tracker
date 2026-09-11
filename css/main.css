@@ -159,8 +159,8 @@ canvas[style*="background: black"] {
   padding: 7px 8px;
   border-radius: 10px;
   border: 1px solid var(--border);
-  background: var(--bg-overlay);
-  color: var(--text-dim);
+  background: rgba(18, 24, 33, 0.9);
+  color: var(--text);
   font-family: var(--mono);
   font-size: 11px; font-weight: 600;
   text-align: center;
@@ -172,6 +172,32 @@ canvas[style*="background: black"] {
   border-color: var(--accent);
 }
 .product-btn.unavailable { opacity: 0.45; }
+
+/* ---------- Basemap switcher ---------- */
+.basemap-switcher {
+  display: flex; flex-direction: column; gap: 4px;
+  padding: 6px;
+  background: rgba(18, 24, 33, 0.9);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+.basemap-btn {
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: rgba(18, 24, 33, 0.7);
+  color: var(--text-dim);
+  font-family: var(--mono);
+  font-size: 10px; font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.basemap-btn:hover { background: rgba(18, 24, 33, 0.85); }
+.basemap-btn.active {
+  background: var(--accent);
+  color: #06222e;
+  border-color: var(--accent);
+}
 
 /* ---------- Animation bar ---------- */
 .anim-bar {

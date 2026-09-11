@@ -45,6 +45,24 @@ export const CONFIG = {
     defaultProduct: 'CREF',
   },
 
+  basemaps: [
+    {
+      name: 'Topo',
+      dark: 'https://basemap.nationalmap.gov/arcgis/rest/services/USGSTopo/MapServer/tile/{z}/{y}/{x}',
+      labels: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+    },
+    {
+      name: 'Satellite',
+      dark: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+      labels: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+    },
+    {
+      name: 'OSM',
+      dark: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+      labels: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+    },
+  ],
+
   analysis: {
     monitorRadiusKm: 250,     // default storm monitoring radius around GPS
     historyMaxSamples: 48,    // per-cell trend history (~90 min at 2 min)

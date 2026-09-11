@@ -61,6 +61,10 @@ export class MapView {
       attribution: 'Esri', maxZoom: 19, opacity: 0.85, ...calmTiles,
     });
 
+    this.basemapLayer = null;
+    this.currentBasemapIdx = 0;
+    this.initBasemapSwitcher(calmTiles);
+
     // Overlay groups.
     this.groups = {
       spcOutlook: L.layerGroup(),
@@ -98,6 +102,49 @@ export class MapView {
         html = `<span style="font-family:monospace">${lat.toFixed(4)}, ${lng.toFixed(4)}</span><br>Enable location (⌖) for distance/bearing.`;
       }
       L.popup({ closeButton: true }).setLatLng(e.latlng).setContent(html).openOn(this.map);
+    });
+  }
+
+  initBasemapSwitcher(calmTiles) {
+    const basemaps = CONFIG.basemaps || [];
+    if (basemaps.length === 0) return;
+
+    const container = L.DomUtil.create('div', 'basemap-switcher');
+    basemaps.forEach((bm, idx) => {
+      const btn = L.DomUtil.create('button', idx === 0 ? 'basemap-btn active' : 'basemap-btn', container);
+      btn.textContent = bm.name;
+      btn.onclick = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        this.switchBasemap(idx, calmTiles);
+      };
+      btn.dataset.idx = idx;
+    });
+
+    const control = L.Control.extend({
+      onAdd: () => container,
+    });
+    new control({ position: 'topleft' }).addTo(this.map);
+
+    this.switchBasemap(0, calmTiles);
+  }
+
+  switchBasemap(idx, calmTiles) {
+    const basemaps = CONFIG.basemaps || [];
+    if (idx < 0 || idx >= basemaps.length) return;
+
+    const bm = basemaps[idx];
+    if (this.basemapLayer) this.map.removeLayer(this.basemapLayer);
+
+    this.basemapLayer = L.tileLayer(bm.dark, {
+      attribution: '&copy; Map providers', subdomains: 'abcd', maxZoom: 19, ...calmTiles,
+    }).addTo(this.map);
+    this.map.getPane('tiles').insertBefore(this.basemapLayer.getContainer(), this.map.getPane('tiles').firstChild);
+
+    this.currentBasemapIdx = idx;
+    document.querySelectorAll('.basemap-btn').forEach((btn, i) => {
+      if (i === idx) btn.classList.add('active');
+      else btn.classList.remove('active');
     });
   }
 
