@@ -101,6 +101,18 @@ html, body {
 #map { position: absolute; inset: 0; background: #05070a; }
 
 .leaflet-container { font-family: var(--font); }
+
+/* Ensure all Leaflet panes are transparent */
+.leaflet-pane, .leaflet-tile-pane, .leaflet-overlay-pane, .leaflet-shadow-pane,
+.leaflet-marker-pane, .leaflet-tooltip-pane, .leaflet-popup-pane {
+  background: transparent !important;
+}
+
+/* Remove any black backgrounds from Leaflet canvases */
+.leaflet-canvas-container canvas {
+  background: transparent !important;
+}
+
 .leaflet-control-attribution {
   background: rgba(11,15,20,0.7) !important;
   color: var(--text-dim) !important;
@@ -266,6 +278,20 @@ html, body {
 
 /* Ensure map background is clear */
 #map { background: #05070a !important; }
+
+/* Block all dark overlays and artifacts */
+div[style*="background: rgb(0, 0, 0)"],
+div[style*="background: #000"],
+div[style*="background-color: rgb(0, 0, 0)"],
+div[style*="background-color: #000"] {
+  display: none !important;
+}
+
+/* Clean up any leftover canvas elements with wrong styling */
+canvas[style*="background: black"],
+canvas[style*="background: rgb(0, 0, 0)"] {
+  display: none !important;
+}
 
 /* `display:flex` above would defeat the hidden attribute — restore it. */
 .panel[hidden], .sheet[hidden], .ai-ticker[hidden],
