@@ -14,9 +14,10 @@ export class StormStructureVisualizer {
 
   initialize() {
     this.canvas = document.createElement('canvas');
-    this.canvas.width = 400;
-    this.canvas.height = 300;
-    this.canvas.style.cssText = 'background: rgba(20,20,30,0.95); border-radius: 8px; border: 1px solid rgba(100,150,255,0.2);';
+    const width = this.container?.clientWidth || 400;
+    this.canvas.width = width;
+    this.canvas.height = 220;
+    this.canvas.style.cssText = 'display: block; width: 100%; height: 100%; border-radius: 8px;';
     this.container?.appendChild(this.canvas);
     this.ctx = this.canvas.getContext('2d');
   }
@@ -142,9 +143,10 @@ export class MultiStormComparison {
 
   initialize() {
     this.canvas = document.createElement('canvas');
-    this.canvas.width = 500;
-    this.canvas.height = 200;
-    this.canvas.style.cssText = 'background: rgba(20,20,30,0.95); border-radius: 8px; margin: 10px 0;';
+    const width = this.container?.clientWidth || 500;
+    this.canvas.width = width;
+    this.canvas.height = 220;
+    this.canvas.style.cssText = 'display: block; width: 100%; height: 100%; border-radius: 8px;';
     this.container?.appendChild(this.canvas);
     this.ctx = this.canvas.getContext('2d');
   }
@@ -198,9 +200,10 @@ export class ForecastGraph {
 
   initialize() {
     this.canvas = document.createElement('canvas');
-    this.canvas.width = 400;
-    this.canvas.height = 200;
-    this.canvas.style.cssText = 'background: rgba(20,20,30,0.95); border-radius: 8px; margin: 10px 0;';
+    const width = this.container?.clientWidth || 400;
+    this.canvas.width = width;
+    this.canvas.height = 220;
+    this.canvas.style.cssText = 'display: block; width: 100%; height: 100%; border-radius: 8px;';
     this.container?.appendChild(this.canvas);
     this.ctx = this.canvas.getContext('2d');
   }

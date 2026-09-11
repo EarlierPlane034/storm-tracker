@@ -18,9 +18,10 @@ export class StormMetricsAnimation {
 
   initialize() {
     this.canvas = document.createElement('canvas');
-    this.canvas.width = 400;
+    const width = this.container?.clientWidth || 400;
+    this.canvas.width = width;
     this.canvas.height = 200;
-    this.canvas.style.cssText = 'background: rgba(20,20,30,0.9); border-radius: 8px; margin: 10px 0;';
+    this.canvas.style.cssText = 'display: block; width: 100%; height: auto; background: rgba(20,20,30,0.9); border-radius: 8px; margin: 10px 0;';
     this.container?.appendChild(this.canvas);
     this.ctx = this.canvas.getContext('2d');
   }
@@ -98,9 +99,10 @@ export class HailScatterPlot {
 
   initialize() {
     this.canvas = document.createElement('canvas');
-    this.canvas.width = 300;
+    const width = this.container?.clientWidth || 300;
+    this.canvas.width = width;
     this.canvas.height = 250;
-    this.canvas.style.cssText = 'background: rgba(20,20,30,0.9); border-radius: 8px; margin: 10px 0;';
+    this.canvas.style.cssText = 'display: block; width: 100%; height: auto; background: rgba(20,20,30,0.9); border-radius: 8px; margin: 10px 0;';
     this.container?.appendChild(this.canvas);
     this.ctx = this.canvas.getContext('2d');
   }

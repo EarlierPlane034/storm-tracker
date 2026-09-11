@@ -87,6 +87,8 @@ async function main() {
   wireChrome();
   wireAnimBar();
   applyTheme();
+  syncTabbarHeight();
+  window.addEventListener('resize', debounce(syncTabbarHeight, 150));
   initChat({ analysesProvider: () => analyses, onSelect: selectStorm });
   document.getElementById('btn-chat').addEventListener('click', openChat);
   applyChaseMode();
@@ -169,7 +171,15 @@ async function main() {
   }, 1000);
 
   if (!settings.firstRunDone) {
-    document.getElementById('app').classList.add('show-disclaimer');
+    const appEl = document.getElementById('app');
+    appEl.classList.add('show-disclaimer');
+    // Measure the disclaimer's actual rendered height (it can wrap to 2-3
+    // lines on narrow phones) so fixed-position panels/sheets reserve
+    // exactly enough space above the tabbar instead of overlapping it.
+    requestAnimationFrame(() => {
+      const h = document.getElementById('disclaimer')?.offsetHeight || 0;
+      appEl.style.setProperty('--disclaimer-h', `${h}px`);
+    });
     setSetting('firstRunDone', true);
     // Show quick start guide after a brief delay
     setTimeout(() => showQuickStartGuide(), 800);
@@ -757,6 +767,14 @@ async function checkRoute(dest) {
   }
 }
 /* ---------------- Panels / tabs / settings ---------------- */
+
+/** Fixed-position panels/sheets reserve space above the tabbar via a CSS
+ * var rather than a guessed pixel constant — actual rendered height varies
+ * with font metrics and safe-area insets. */
+function syncTabbarHeight() {
+  const h = document.getElementById('tabbar')?.offsetHeight || 0;
+  document.getElementById('app').style.setProperty('--tabbar-h', `${h}px`);
+}
 
 function wireChrome() {
   const panels = ['storms', 'alerts', 'reports', 'analysis', 'week3', 'ai', 'settings', 'about', 'features'];

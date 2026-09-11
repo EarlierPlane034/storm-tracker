@@ -82,6 +82,14 @@ export class SpotterReportManager {
   }
 
   /**
+   * Get every report, most recent first
+   */
+  getAllReports() {
+    return Array.from(this.reports.values())
+      .sort((a, b) => b.timestamp - a.timestamp);
+  }
+
+  /**
    * Get nearby reports (within radius)
    */
   getNearbyReports(lat, lon, radiusKm = 50) {
@@ -238,6 +246,19 @@ export class SharedStormTracking {
    */
   getStormUpdates(stormId) {
     return this.trackedStorms.get(stormId)?.updates || [];
+  }
+
+  /**
+   * Get every storm currently being followed, most followers first
+   */
+  getActiveSharedStorms() {
+    return Array.from(this.trackedStorms.entries())
+      .map(([stormId, storm]) => ({
+        stormId,
+        followers: storm.followers.size,
+        updates: storm.updates.length,
+      }))
+      .sort((a, b) => b.followers - a.followers);
   }
 
   /**

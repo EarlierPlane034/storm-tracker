@@ -125,7 +125,7 @@ export class StormDatabase {
     return {
       totalStorms,
       totalTornados,
-      avgSeverity: (avgSeverity / totalStorms).toFixed(1),
+      avgSeverity: totalStorms ? (avgSeverity / totalStorms).toFixed(1) : 'N/A',
       byMonth,
       byType,
     };
@@ -174,7 +174,7 @@ export class StormDatabase {
       date: new Date().toISOString(),
       stormCount: storms.length,
       durationMin: duration,
-      avgSeverity: (storms.reduce((a, b) => a + b.severeScore, 0) / storms.length).toFixed(1),
+      avgSeverity: storms.length ? (storms.reduce((a, b) => a + b.severeScore, 0) / storms.length).toFixed(1) : 'N/A',
       topStorm: storms[0],
     };
 

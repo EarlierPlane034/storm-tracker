@@ -287,7 +287,7 @@ canvas[style*="background: black"] {
   position: fixed;
   inset: 0;
   top: calc(44px + var(--safe-top));
-  bottom: calc(48px + var(--safe-bottom));
+  bottom: calc(var(--tabbar-h, 48px) + var(--safe-bottom));
   background: var(--bg);
   z-index: 1500;
   display: flex; flex-direction: column;
@@ -539,6 +539,14 @@ canvas[style*="background: rgb(0, 0, 0)"] {
   display: none; /* shown on first launch; inline AI disclaimers always present */
 }
 .app.show-disclaimer .disclaimer { display: block; }
+
+/* .panel/.sheet reserve space above the tabbar (--tabbar-h) via a `bottom`
+   offset; bump it while the disclaimer footer also occupies space there, or
+   panel content overlaps that text. --disclaimer-h is measured in JS
+   (app.js) since the text can wrap to 2-3 lines on narrow phones; 28px is
+   a single-line fallback for the instant before that measurement runs. */
+.app.show-disclaimer .panel { bottom: calc(var(--tabbar-h, 48px) + var(--disclaimer-h, 28px) + var(--safe-bottom)); }
+.app.show-disclaimer .sheet { padding-bottom: calc(var(--disclaimer-h, 28px) + var(--safe-bottom)); }
 
 /* ---------- Storm marker (Leaflet divIcon) ---------- */
 .cell-marker {

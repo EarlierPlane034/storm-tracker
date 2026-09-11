@@ -237,7 +237,7 @@ export class ChaseDecisionScore {
       factors: {
         stormValue: `${storm.severeScore}/100`,
         tornadoPotential: `${storm.tornado?.score || 0}/100`,
-        distance: `${route.estimatedDistanceKm}km`,
+        distance: `${route.estimatedDistanceKm.toFixed(1)} km`,
       },
     };
   }

@@ -219,8 +219,8 @@ export class Week3FeaturesPanel {
             ${reports.length === 0 ? '<div class="muted">No reports yet</div>' : ''}
             ${reports.slice(0, 5).map((r) => `
               <div class="report-card">
-                <div class="report-meta">${r.verified ? '✅' : '⏳'} ${r.verification.verifiedBy || 'Pending'}</div>
-                <div class="report-text">${r.text}</div>
+                <div class="report-meta">${r.verified ? '✅ Verified' : '⏳ Pending'} · ${r.username}</div>
+                <div class="report-text">${r.observations}</div>
                 <div class="report-time">${new Date(r.timestamp).toLocaleTimeString()}</div>
               </div>
             `).join('')}
@@ -230,10 +230,11 @@ export class Week3FeaturesPanel {
         <div class="community-section">
           <h3>🏆 Top Chasers</h3>
           <div class="leaderboard">
+            ${leaderboard.length === 0 ? '<div class="muted">No chasers ranked yet</div>' : ''}
             ${leaderboard.slice(0, 5).map((c, i) => `
               <div class="leaderboard-row">
                 <span class="rank">#${i + 1}</span>
-                <span class="name">${c.name}</span>
+                <span class="name">${c.username}</span>
                 <span class="score">${c.score} points</span>
               </div>
             `).join('')}
@@ -372,8 +373,9 @@ export class Week3FeaturesPanel {
       37.5, -96.5, this.selectedStorm.lat, this.selectedStorm.lon, this.selectedStorm
     );
     const shelters = this.safeHavenFinder.findNearestShelter(37.5, -96.5, 20);
+    // severeScore/tornado live on the analysis, not the bare cell.
     const decision = ChaseDecisionScore.score(
-      { lat: 37.5, lon: -96.5 }, this.selectedStorm, {}, route
+      { lat: 37.5, lon: -96.5 }, this.selectedAnalyses[0] || this.selectedStorm, {}, route
     );
 
     container.innerHTML = `
@@ -497,6 +499,11 @@ export class Week3FeaturesPanel {
    * 7. Advanced Charts & 3D Tab
    */
   renderCharts(container) {
+    if (!this.selectedStorm) {
+      container.innerHTML = '<div class="muted">Select a storm from the map to view charts</div>';
+      return;
+    }
+
     container.innerHTML = `
       <div class="charts-panel">
         <div class="chart-card">
@@ -506,7 +513,9 @@ export class Week3FeaturesPanel {
 
         <div class="chart-card">
           <h3>📊 Multi-Storm Comparison</h3>
-          <div id="chart-comparison" class="chart-container"></div>
+          <div id="chart-comparison" class="chart-container">
+            ${this.selectedStorms.length > 1 ? '' : '<div class="muted chart-empty">Select 2+ storms to compare them here</div>'}
+          </div>
         </div>
 
         <div class="chart-card">
@@ -516,23 +525,21 @@ export class Week3FeaturesPanel {
       </div>
     `;
 
-    if (this.selectedStorm) {
-      const structureViz = new StormStructureVisualizer('chart-structure');
-      structureViz.initialize();
-      structureViz.renderCrossSection(this.selectedStorm, 'N-S');
+    const structureViz = new StormStructureVisualizer('chart-structure');
+    structureViz.initialize();
+    structureViz.renderCrossSection(this.selectedStorm, 'N-S');
 
-      if (this.selectedStorms.length > 1) {
-        const comparison = new MultiStormComparison('chart-comparison');
-        comparison.initialize();
-        comparison.renderComparison(this.selectedStorms, 'severeScore');
-      }
-
-      const forecastGraph = new ForecastGraph('chart-forecast');
-      forecastGraph.initialize();
-      forecastGraph.renderForecast({
-        dbz: { current: this.selectedStorm.maxDbz, forecast15: this.selectedStorm.maxDbz + 5, forecast30: this.selectedStorm.maxDbz + 8 }
-      }, 'Reflectivity (dBZ)');
+    if (this.selectedStorms.length > 1) {
+      const comparison = new MultiStormComparison('chart-comparison');
+      comparison.initialize();
+      comparison.renderComparison(this.selectedStorms, 'severeScore');
     }
+
+    const forecastGraph = new ForecastGraph('chart-forecast');
+    forecastGraph.initialize();
+    forecastGraph.renderForecast({
+      dbz: { current: this.selectedStorm.maxDbz, forecast15: this.selectedStorm.maxDbz + 5, forecast30: this.selectedStorm.maxDbz + 8 }
+    }, 'Reflectivity (dBZ)');
   }
 
   /**
@@ -644,23 +651,25 @@ export class Week3FeaturesPanel {
 
       .panel-tabs {
         display: grid;
-        grid-template-columns: repeat(4, 1fr);
+        grid-template-columns: repeat(4, minmax(0, 1fr));
         gap: 6px;
         padding: 10px;
         background: rgba(15, 20, 35, 0.9);
         border-bottom: 2px solid rgba(100,150,255,0.3);
-        overflow-x: auto;
         flex-shrink: 0;
       }
 
       .tab-btn {
-        padding: 10px 8px;
+        padding: 8px 4px;
         border: 1.5px solid rgba(100,150,255,0.3);
         background: rgba(30, 40, 60, 0.95);
         color: #9ca3af;
         border-radius: 6px;
         cursor: pointer;
-        font-size: 12px;
+        font-size: 11px;
+        line-height: 1.3;
+        white-space: normal;
+        word-break: break-word;
         transition: all 0.2s;
         font-weight: 500;
       }
@@ -801,6 +810,15 @@ export class Week3FeaturesPanel {
         background: rgba(25, 35, 55, 0.85);
         border-radius: 6px;
         border: 1px solid rgba(100,150,255,0.15);
+      }
+
+      .chart-container .chart-empty {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        height: 100%;
+        text-align: center;
+        padding: 0 16px;
       }
     `;
     document.head.appendChild(style);
