@@ -29,8 +29,11 @@ import { renderAbout } from './ui/aboutPanel.js';
 import { fetchRadarSites } from './api/iem.js';
 import { getJSON } from './api/client.js';
 import { haversineKm, destinationPoint } from './utils.js';
+import { AdvancedAnalysisPanel } from './ui/advancedAnalysisPanel.js';
+import { Week3FeaturesPanel } from './ui/week3FeaturesPanel.js';
+import { recordStormMetrics } from './analysis/stormTrendAnalysis.js';
 
-let mapView, radar;
+let mapView, radar, advancedPanel, week3Panel;
 let analyses = [];
 let route = null; // { name, coords: [[lat,lon],...] }
 let communityReports = [];
@@ -66,6 +69,19 @@ async function main() {
   configureStormSheet({
     ghost: (latlon) => (latlon ? mapView.setGhost(latlon[0], latlon[1]) : mapView.clearGhost()),
   });
+
+  // Initialize advanced analysis panel (Week 2)
+  const analysisPanelContainer = document.getElementById('analysis-panel');
+  if (analysisPanelContainer) {
+    advancedPanel = new AdvancedAnalysisPanel('analysis-panel', mapView.map);
+  }
+
+  // Initialize Week 3 features panel
+  const week3Container = document.getElementById('week3-panel');
+  if (week3Container) {
+    week3Panel = new Week3FeaturesPanel('week3-panel', mapView.map);
+  }
+
   wireChrome();
   wireAnimBar();
   applyTheme();
@@ -215,6 +231,12 @@ function selectStorm(a) {
     t.classList.toggle('active', t.dataset.panel === 'map'));
   mapView.focusCell(a.cell);
   openStormSheet(a);
+  if (advancedPanel) {
+    advancedPanel.selectStorm(a);
+  }
+  if (week3Panel) {
+    week3Panel.selectStorm(a);
+  }
 }
 
 /** Apply the user's display filters (Settings → AI analyst). */
@@ -230,6 +252,11 @@ const reanalyze = debounce(() => {
   const { cells, alerts, reports, environment } = sources.getState();
   const user = geo.getLocation();
   analyses = analyzeStorms(cells, environment, alerts, reports, user);
+
+  // Record metrics for trend analysis
+  analyses.forEach((a) => {
+    recordStormMetrics(a.cell.id, a.cell, a);
+  });
 
   // Map + always-on chrome first; list panels only if actually visible.
   mapView.renderCells(visibleAnalyses(user));
@@ -702,7 +729,7 @@ async function checkRoute(dest) {
 /* ---------------- Panels / tabs / settings ---------------- */
 
 function wireChrome() {
-  const panels = ['storms', 'alerts', 'reports', 'ai', 'settings', 'about'];
+  const panels = ['storms', 'alerts', 'reports', 'analysis', 'week3', 'ai', 'settings', 'about'];
   const tabs = document.querySelectorAll('.tab');
 
   const showPanel = (name) => {
