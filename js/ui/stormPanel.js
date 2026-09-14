@@ -2,7 +2,7 @@
  * Storm list panel (ranked most→least dangerous) and the tap-to-open storm
  * detail sheet with full stats, AI narrative, tornado meter and trend charts.
  */
-import { el, escapeHtml, fmtDistance, fmtSpeed, fmtHailSize, compassDir, fmtRelTime, severityColor, downloadFile } from '../utils.js';
+import { el, escapeHtml, fmtDistance, fmtSpeed, fmtHailSize, compassDir, fmtRelTime, severityColor, downloadFile, estimateRainRateMmH, fmtRainRate, haversineKm } from '../utils.js';
 import { settings, setSetting } from '../storage.js';
 import { CONFIG } from '../config.js';
 import { getHistory } from '../analysis/trends.js';
@@ -222,6 +222,29 @@ export function configureStormSheet(hooks) {
   sheetHooks = hooks || {};
 }
 
+/** Roadmap #385: if the storm you're looking at is weakening, is there a
+ * stronger one nearby worth switching to instead? Only looks at storms
+ * that are themselves not weakening, at least as dangerous, and within a
+ * reasonable drive (80 km) — a distant or equally-fading cell isn't a
+ * useful suggestion. */
+function abandonmentSuggestion(a) {
+  if (a.lifecycle !== 'weakening') return null;
+  const all = sheetHooks.getAllAnalyses?.() || [];
+  const c = a.cell;
+  let best = null, bestDist = Infinity;
+  for (const other of all) {
+    if (other.cell.id === c.id) continue;
+    if (other.lifecycle === 'weakening') continue;
+    if (other.severeScore < a.severeScore) continue;
+    const d = haversineKm(c.lat, c.lon, other.cell.lat, other.cell.lon);
+    if (d > 80) continue;
+    if (d < bestDist) { bestDist = d; best = other; }
+  }
+  if (!best) return null;
+  return `This storm looks like it's weakening. ${best.type.label} ${fmtDistance(bestDist, settings.units)} away ` +
+    `looks stronger (score ${best.severeScore}/100) — worth considering as your next target.`;
+}
+
 /** Full-detail bottom sheet for one storm. */
 export function openStormSheet(a) {
   const sheet = document.getElementById('storm-sheet');
@@ -249,6 +272,10 @@ export function openStormSheet(a) {
     ]),
   ]));
   body.appendChild(el('div', { class: 'muted', style: 'margin:4px 0 8px', text: a.type.desc }));
+  const abandon = abandonmentSuggestion(a);
+  if (abandon) {
+    body.appendChild(el('div', { class: 'hud-warn', style: 'margin-bottom:8px', text: `🔄 ${abandon}` }));
+  }
 
   // AI narrative.
   const ai = el('div', { class: 'ai-block' });
@@ -296,6 +323,7 @@ export function openStormSheet(a) {
   add('Distance', a.userRel ? fmtDistance(a.userRel.distKm, settings.units) : 'no GPS');
   add('Arrival', a.userRel?.etaMin != null ? `~${a.userRel.etaMin} min` : 'not toward you');
   add('Max dBZ', c.maxDbz != null ? `${c.maxDbz}` : null);
+  add('Est. rain rate', fmtRainRate(estimateRainRateMmH(c.maxDbz), settings.units));
   add('Echo top', c.topKft != null ? `${c.topKft} kft` : null);
   add('VIL', c.vil != null ? `${c.vil} kg/m²` : null);
   add('Hail est.', c.maxHailIn != null ? fmtHailSize(c.maxHailIn, settings.units) : null);

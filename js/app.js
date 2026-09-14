@@ -78,6 +78,7 @@ async function main() {
   initStormSheet();
   configureStormSheet({
     ghost: (latlon) => (latlon ? mapView.setGhost(latlon[0], latlon[1]) : mapView.clearGhost()),
+    getAllAnalyses: () => analyses,
   });
 
   // Initialize advanced analysis panel (Week 2)

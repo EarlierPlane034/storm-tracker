@@ -86,6 +86,22 @@ export function fmtHailSize(inches, units = 'imperial') {
   return `${inches.toFixed(2)}"`;
 }
 
+/** Instantaneous rain rate from reflectivity via the NWS default Z-R
+ * relationship (Z = 200·R^1.6, Marshall-Palmer). A rough estimate — actual
+ * rate depends on drop-size distribution, which varies by storm type. */
+export function estimateRainRateMmH(dbz) {
+  if (dbz == null) return null;
+  const z = Math.pow(10, dbz / 10);
+  return Math.pow(z / 200, 1 / 1.6);
+}
+
+export function fmtRainRate(mmPerHr, units = 'imperial') {
+  if (mmPerHr == null) return null;
+  if (units === 'metric') return `${mmPerHr.toFixed(mmPerHr < 10 ? 1 : 0)} mm/hr`;
+  const inPerHr = mmPerHr / 25.4;
+  return `${inPerHr.toFixed(inPerHr < 1 ? 2 : 1)} in/hr`;
+}
+
 export function fmtTimeUTC(date) {
   return `${String(date.getUTCHours()).padStart(2, '0')}:${String(date.getUTCMinutes()).padStart(2, '0')}Z`;
 }
