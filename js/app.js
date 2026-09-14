@@ -172,6 +172,7 @@ async function main() {
 
   wireLocationSearch();
   wireGlossary();
+  wireScoreScale();
   wireKeyboardShortcuts();
 
   // ---- Status chrome --------------------------------------------------------------
@@ -640,6 +641,7 @@ function applyTheme() {
   document.body.classList.toggle('colorblind', !!settings.colorblindMode);
   document.body.classList.toggle('large-text', !!settings.largeText);
   document.body.classList.toggle('high-contrast', !!settings.highContrast);
+  document.body.classList.toggle('serif-font', settings.fontFamily === 'serif');
 }
 
 /* ---------------- Chase mode: HUD + screen wake lock ---------------- */
@@ -1018,6 +1020,49 @@ function wireGlossary() {
   input.addEventListener('keydown', (e) => { if (e.key === 'Escape') close(); });
 }
 
+/** Roadmap #173: tap any AI Severe Score badge to see what the 0-100 scale
+ * actually means, with a real-world example per band. Wired as a single
+ * capture-phase listener so it works for every current and future badge
+ * (storm cards, sheet header, hazard-matrix table) without each render
+ * site needing its own click handler — and it stops the click from also
+ * reaching a card/row's own "open storm" handler underneath. */
+const SCORE_BANDS = [
+  { cls: 'score-verylow', range: '0–20', label: 'Very Low', example: 'Ordinary thunderstorm — little to no severe threat expected.' },
+  { cls: 'score-low', range: '21–40', label: 'Low', example: 'Weak organization — occasional gusty wind or small hail possible.' },
+  { cls: 'score-elev', range: '41–60', label: 'Elevated', example: 'Organized storm — scattered hail/wind reports likely; isolated brief tornado threat.' },
+  { cls: 'score-high', range: '61–80', label: 'High', example: 'Strong, well-organized storm — golfball+ hail and damaging wind likely; tornado threat rising.' },
+  { cls: 'score-extreme', range: '81–100', label: 'Extreme', example: 'Dangerous, intense storm — very large hail, destructive wind, and a serious tornado threat are all plausible.' },
+];
+function wireScoreScale() {
+  const overlay = document.getElementById('score-scale-overlay');
+  const body = document.getElementById('score-scale-body');
+  body.innerHTML = '';
+  body.appendChild(el('div', {
+    class: 'muted', style: 'padding:6px 10px 10px; font-size:11.5px',
+    text: 'The AI Severe Score (0–100) rolls up rotation, hail, wind, flood and lightning signals into one number — how dangerous the storm looks right now. It is an automated estimate, not an official NWS forecast.',
+  }));
+  for (const b of SCORE_BANDS) {
+    body.appendChild(el('div', { class: 'glossary-entry' }, [
+      el('div', { class: 'glossary-term' }, [
+        el('span', { class: `score-pill ${b.cls}`, style: 'margin-right:8px', text: b.range }),
+        document.createTextNode(b.label),
+      ]),
+      el('div', { class: 'glossary-def', text: b.example }),
+    ]));
+  }
+  const close = () => { overlay.hidden = true; };
+  document.getElementById('btn-score-scale-close').addEventListener('click', close);
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+
+  document.addEventListener('click', (e) => {
+    const pill = e.target.closest?.('.score-pill');
+    if (!pill) return;
+    e.stopPropagation();
+    e.preventDefault();
+    overlay.hidden = false;
+  }, true);
+}
+
 function wireChrome() {
   const panels = ['storms', 'alerts', 'reports', 'analysis', 'week3', 'ai', 'settings', 'about', 'features'];
   const tabs = document.querySelectorAll('.tab');
@@ -1094,7 +1139,7 @@ function wireChrome() {
         showToast('Chase-day replay drawn — your route in blue, 📝 marks your notes. Load again from Settings to redraw.');
         return;
       }
-      if (path === 'nightMode' || path === 'largeText' || path === 'highContrast') applyTheme();
+      if (path === 'nightMode' || path === 'largeText' || path === 'highContrast' || path === 'fontFamily') applyTheme();
       if (path === 'colorblindMode') { applyTheme(); mapView.renderCells(visibleAnalyses(geo.getLocation())); }
       if (path === 'chaseMode') applyChaseMode();
       if (path === 'dataSaver') {

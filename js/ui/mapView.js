@@ -247,6 +247,24 @@ export class MapView {
     const driveMin = Math.round((distToPointKm / 88) * 60); // ~55 mph average, matches the long-press measure tool
     const headingBrg = bearingDeg(user.lat, user.lon, point[0], point[1]);
 
+    // Roadmap #375/#376/#377: how likely you are to actually be there in
+    // time, the average speed that requires, and whether you can afford to
+    // wait before leaving. All derived from the same drive-time estimate
+    // the popup already showed, so units and 55-mph assumption stay
+    // consistent with the rest of the app instead of inventing a second
+    // routing model.
+    const timeRatio = minutesAhead > 0 ? driveMin / minutesAhead : Infinity;
+    const confidence = timeRatio <= 0.6 ? { label: 'High', pct: 85 }
+      : timeRatio <= 0.9 ? { label: 'Moderate', pct: 60 }
+      : timeRatio <= 1.1 ? { label: 'Low — cutting it close', pct: 35 }
+      : { label: 'Very low — you likely won\'t make it', pct: 15 };
+    const requiredKmh = minutesAhead > 0 ? distToPointKm / (minutesAhead / 60) : 0;
+    const requiredSpeedText = fmtSpeed(requiredKmh / 1.852, settings.units);
+    const launchDelayMin = Math.floor(minutesAhead - driveMin - 5); // 5-min safety buffer
+    const launchNote = launchDelayMin >= 3
+      ? `No rush — the storm won't be there for a while. You can wait ~${launchDelayMin} min before leaving.`
+      : null;
+
     this._interceptGroup = L.layerGroup().addTo(this.map);
     this._interceptGroup.addLayer(L.polyline([[user.lat, user.lon], point], {
       color: '#fbbf24', weight: 3, opacity: 0.85, dashArray: '8 6', interactive: false,
@@ -264,7 +282,9 @@ export class MapView {
       `${storm.type.label} (score ${storm.severeScore}/100) moving ${compassDir(c.moveDirDeg)} at ` +
       `${fmtSpeed(c.moveSpeedKts, settings.units)} — projected here in ~${minutesAhead} min.<br>` +
       `Head <strong>${compassDir(headingBrg)}</strong>, ${fmtDistance(distToPointKm, settings.units)} ` +
-      `(~${driveMin} min drive).<br>` +
+      `(~${driveMin} min drive). Average ${requiredSpeedText} to arrive right as the storm does.<br>` +
+      `<strong>Intercept confidence: ${confidence.label}</strong> (~${confidence.pct}% you're there in time).<br>` +
+      (launchNote ? `<em>${launchNote}</em><br>` : '') +
       `<em>Position to the side of its path (typically SE of a right-moving storm) — ` +
       `never drive directly into the core. Unofficial guidance.</em>`
     );

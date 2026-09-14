@@ -39,11 +39,17 @@ Legend: ✅ done and verified in code · ☐ not started
 | 74 | KML chase-track export (already present — confirmed, not newly built) | `js/ui/journal.js` (`exportTrackKml`) |
 | 75 | JSON storm report export | `js/ui/stormPanel.js` (`exportStormsJson`) |
 | 195 | Tornado shelter locator | `js/chase/chaseSafety.js` (`SafeHavenFinder`, now wired to real GPS) |
+| 173 | Hazard scale reference (tap any AI score badge — card, sheet, table — to see what the 0–100 bands mean, with a real-world example each) | `js/app.js` (`wireScoreScale`), `index.html` (`#score-scale-overlay`) |
+| 140 | Font family toggle (sans-serif / serif) | `js/storage.js`, `css/main.css` (`body.serif-font`), `js/ui/settingsPanel.js` |
+| 335 | Alert scheduling / quiet hours — mute sound/vibration/voice/push overnight; danger-level (TVS, tornado chance rising) still breaks through | `js/storage.js`, `js/alerts/alertEngine.js` (`isQuietHours`), `js/ui/settingsPanel.js` |
+| 375, 376, 377 | Intercept confidence meter, speed recommendation, delayed-launch timer — added to the existing intercept-guidance popup | `js/ui/mapView.js` (`renderInterceptGuidance`) |
+| 339 | Alert cooldown timer (already present — confirmed, not newly built; 30-min dedupe on every alert) | `js/alerts/alertEngine.js` (`once`, `DEDUPE_MS`) |
+| 384, 388 | Chase decision support AI / pre-chase success prediction (already present — confirmed, not newly built) | `js/chase/chaseSafety.js` (`ChaseDecisionScore`) |
 | — | Achievements/badges + day-streak (bonus, not numbered) | `js/data/stormDatabase.js` (`getAchievements`) |
 | — | Basemap switcher: Topo/Satellite/OSM (bonus, not numbered) | `js/ui/mapView.js` |
 | — | Mobile layout overflow fixes (tab bar, GPS chip) (bonus) | `css/main.css`, `css/ui-polish.css` |
 
-**28 roadmap items + 3 bonus items shipped.**
+**34 roadmap items + 3 bonus items shipped.**
 
 Already verified as pre-existing/working (not newly built, but confirmed live):
 screen wake-lock during chase (#97), metric/imperial toggle (#135), night
@@ -79,9 +85,14 @@ per your request.
   are explicitly deprioritized right now. An "Enhanced V2" storm-scoring
   module exists fully-written but unused; swapping it in for the live
   scoring path would need real-data validation first, so it wasn't touched.
+  The Layers panel's "County boundaries" toggle (roadmap #36) turns a real
+  Leaflet layer group on/off but nothing has ever populated it with county
+  geometry, so switching it on currently shows nothing — needs a real county
+  boundary data source wired in, held off tonight since this sandboxed
+  environment has no live network to fetch/verify one against.
 
 ## Next up
 
-Not decided yet — will pick from the remaining list next round (likely
-candidates: multi-point route builder, chase corridor width indicator,
-storm-relative reflectivity display, or another safety/chasing tool).
+Building continuously tonight — next candidates: chase corridor width
+indicator, escape route planner, storm approach angle indicator, or a
+radar-visualization item.

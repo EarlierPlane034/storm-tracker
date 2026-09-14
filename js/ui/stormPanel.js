@@ -45,7 +45,7 @@ function renderHazardMatrix(analyses, onSelect) {
     tr.appendChild(el('td', { html: `<strong>${escapeHtml(a.type.label)}</strong><span class="hint">${escapeHtml(c.id)}</span>` }));
     tr.appendChild(el('td', { text: a.userRel ? fmtDistance(a.userRel.distKm, settings.units) : '—' }));
     tr.appendChild(el('td', {
-      html: `<span class="${scoreClass(a.severeScore)}" style="padding:2px 6px;border-radius:4px">${a.severeScore}</span>`,
+      html: `<span class="score-pill ${scoreClass(a.severeScore)}" style="font-size:12px;padding:2px 7px">${a.severeScore}</span>`,
     }));
     tr.appendChild(el('td', { text: `${a.tornado.score}%` }));
     tr.appendChild(el('td', { text: c.maxHailIn != null ? fmtHailSize(c.maxHailIn, settings.units) : '—' }));

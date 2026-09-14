@@ -25,6 +25,9 @@
   --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
   --mono: "SF Mono", ui-monospace, Menlo, Consolas, monospace;
 }
+body.serif-font {
+  --font: Georgia, "Iowan Old Style", "Times New Roman", Times, serif;
+}
 
 /* High contrast (Settings → brighter text/borders for bright sunlight) —
    most of the UI already reads these custom properties, so overriding
@@ -513,6 +516,7 @@ canvas[style*="background: rgb(0, 0, 0)"] {
   font-family: var(--mono); font-weight: 700; font-size: 13px;
   border-radius: 8px; padding: 4px 9px;
   color: #04121a;
+  cursor: pointer;
 }
 .score-verylow { background: #64748b; }
 .score-low     { background: #34d399; }

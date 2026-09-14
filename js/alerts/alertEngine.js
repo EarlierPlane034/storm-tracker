@@ -125,14 +125,32 @@ function speak(text) {
   speechSynthesis.speak(u);
 }
 
+/** True during the user's configured quiet-hours window (local clock,
+ * wraps past midnight — e.g. 22 → 7 spans the night). */
+function isQuietHours() {
+  const q = settings.quietHours;
+  if (!q?.enabled) return false;
+  const h = new Date().getHours();
+  return q.startHour <= q.endHour
+    ? h >= q.startHour && h < q.endHour
+    : h >= q.startHour || h < q.endHour;
+}
+
 function deliver(title, body, level = 'warn') {
   title = localize(title);
   body = localize(body);
   logEvent(title, body, level);
-  buzz(level);
-  chime(title, level);
+  // Quiet hours mute everything disruptive (sound/vibration/voice/push) —
+  // danger-level events (TVS, tornado chance rising, critical mergers)
+  // still break through, matching "don't alert me unless tornado warning".
+  const quiet = isQuietHours() && level !== 'danger';
+  if (!quiet) {
+    buzz(level);
+    chime(title, level);
+    if (level === 'danger') speak(`${title}. ${body}`);
+  }
   showToast(`${title} — ${body}`, { level, ttlMs: 12_000 });
-  if (level === 'danger') speak(`${title}. ${body}`);
+  if (quiet) return;
   if (settings.notifySensitivity === 'off') return;
   if (settings.notifySensitivity === 'high-only' && level !== 'danger') return;
   if (typeof Notification !== 'undefined' && Notification.permission === 'granted' &&

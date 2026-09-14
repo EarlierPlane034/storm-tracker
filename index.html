@@ -61,6 +61,15 @@
       <div class="search-results" id="glossary-results"></div>
     </div>
 
+    <!-- AI Severe Score scale reference (opened by tapping any score badge) -->
+    <div class="search-overlay" id="score-scale-overlay" hidden>
+      <div class="search-box">
+        <div style="flex:1; padding:0 8px; font-weight:600">AI Severe Score scale</div>
+        <button class="icon-btn" id="btn-score-scale-close" aria-label="Close score scale reference">&times;</button>
+      </div>
+      <div class="search-results" id="score-scale-body"></div>
+    </div>
+
     <!-- AI headline ticker: one-line rolling summary of the most dangerous nearby storm -->
     <div class="ai-ticker" id="ai-ticker" hidden>
       <span class="ai-ticker-badge">AI</span>

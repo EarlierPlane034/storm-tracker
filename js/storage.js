@@ -15,6 +15,7 @@ export const DEFAULT_SETTINGS = {
   nightMode: false,             // dim red theme for night driving
   colorblindMode: false,        // blue/yellow/orange severity palette instead of red/green
   largeText: false,             // bump font size on commonly-read small text
+  fontFamily: 'sans',           // 'sans' | 'serif' — readability preference
   highContrast: false,          // brighter text/borders for bright-sunlight readability
   chaseMode: false,             // chaser HUD + screen wake lock
   followMe: false,              // auto-center the map on GPS updates
@@ -39,6 +40,11 @@ export const DEFAULT_SETTINGS = {
     windScore: 60,        // alert when AI wind severity score (0-100) crosses this
   },
   soundAlerts: false,      // play a tone (in addition to vibration/voice) on delivery
+  quietHours: {            // suppress sound/vibration/voice/push overnight; danger-level alerts still break through
+    enabled: false,
+    startHour: 22,          // 24h local time
+    endHour: 7,
+  },
   alertsEnabled: {
     tornadoWarning: true,
     tornadoWatch: true,

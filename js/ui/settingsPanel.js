@@ -59,6 +59,7 @@ export function renderSettings({ onChanged, onRequestNotifications, onRouteCheck
   toggleRow('Color-blind friendly colors', 'Blue/yellow/orange/purple severity scale instead of green/red', 'colorblindMode');
   toggleRow('Large text', 'Bigger text on storm cards, stats and lists', 'largeText');
   toggleRow('High contrast', 'Brighter text and borders for bright-sunlight readability', 'highContrast');
+  selectRow('Font', null, 'fontFamily', [['sans', 'Sans-serif (default)'], ['serif', 'Serif']]);
 
   section('Storm chasing');
   toggleRow('Intercept guidance', 'Map pin + route showing where the nearest dangerous storm is headed and how to get there', 'interceptGuidance');
@@ -174,6 +175,10 @@ export function renderSettings({ onChanged, onRequestNotifications, onRouteCheck
     [['en', 'English'], ['es', 'Español']]);
   toggleRow('Haptic alerts', 'Vibration patterns by severity (Android only — iOS blocks web vibration)', 'hapticAlerts');
   toggleRow('Sound alerts', 'Play a tone (tornado siren / warning tone / ping by hazard) in addition to vibration', 'soundAlerts');
+  toggleRow('Quiet hours', 'Mute sound/vibration/voice/push overnight — tornado-warning-level alerts still break through', 'quietHours.enabled');
+  const hourOptions = Array.from({ length: 24 }, (_, h) => [h, hourLabel(h)]);
+  selectRow('Quiet hours start', null, 'quietHours.startHour', hourOptions);
+  selectRow('Quiet hours end', null, 'quietHours.endHour', hourOptions);
   toggleRow('Custom thresholds', 'Alert on your own tornado %/hail/wind numbers, on top of the categories above', 'customThresholds.enabled');
   const thresholdRow = (label, path, min, max, step, suffix = '') => {
     const value = el('span', { class: 'hint', text: `${getPath(path)}${suffix}` });
@@ -266,6 +271,12 @@ export function renderSettings({ onChanged, onRequestNotifications, onRouteCheck
     class: 'ai-disclaimer', style: 'margin-top:16px',
     text: 'StormLens combines NOAA/NWS radar & alerts (via api.weather.gov and the Iowa Environmental Mesonet) with Open-Meteo model data. All AI interpretation is unofficial.',
   }));
+}
+
+function hourLabel(h) {
+  const period = h < 12 ? 'AM' : 'PM';
+  const h12 = h % 12 === 0 ? 12 : h % 12;
+  return `${h12} ${period}`;
 }
 
 function getPath(path) {
