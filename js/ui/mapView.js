@@ -138,7 +138,7 @@ export class MapView {
     if (this.basemapLayer) this.map.removeLayer(this.basemapLayer);
 
     this.basemapLayer = L.tileLayer(bm.dark, {
-      attribution: '&copy; Map providers', subdomains: 'abcd', maxZoom: 19, ...calmTiles,
+      attribution: '&copy; Map providers', maxZoom: 19, ...calmTiles,
     }).addTo(this.map);
 
     this.currentBasemapIdx = idx;

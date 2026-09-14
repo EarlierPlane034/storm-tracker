@@ -55,7 +55,12 @@ export const CONFIG = {
     },
     {
       name: 'OSM',
-      dark: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+      // Single hostname, no {s} subdomain sharding — OSM's own tile usage
+      // policy now recommends this over the legacy a/b/c split, and it
+      // sidesteps a real bug: 'abcd' round-robin (below) was routing ~1 in
+      // 4 requests to the nonexistent 'd.tile.openstreetmap.org', which
+      // silently failed and left black holes in the rendered basemap.
+      dark: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
     },
   ],
 
