@@ -47,17 +47,6 @@ export class MapView {
     // Tile layers only fetch when the gesture settles — never mid-pinch.
     const calmTiles = { updateWhenZooming: false, updateWhenIdle: true, keepBuffer: 2 };
 
-    this.labelPane = this.map.createPane('labels');
-    this.labelPane.style.zIndex = 420;
-    this.labelPane.style.pointerEvents = 'none';
-    L.tileLayer(CONFIG.endpoints.basemapLabels, {
-      pane: 'labels', subdomains: 'abcd', maxZoom: 19, ...calmTiles,
-    }).addTo(this.map);
-
-    this.satelliteLayer = L.tileLayer(CONFIG.endpoints.basemapSatellite, {
-      attribution: 'Esri', maxZoom: 19, opacity: 0.85, ...calmTiles,
-    });
-
     this.basemapLayer = null;
     this.currentBasemapIdx = 0;
     this.initBasemapSwitcher(calmTiles);
@@ -166,10 +155,6 @@ export class MapView {
       if (want && !has) group.addTo(this.map);
       if (!want && has) this.map.removeLayer(group);
     }
-    const wantSat = !!settings.layers.satellite;
-    const hasSat = this.map.hasLayer(this.satelliteLayer);
-    if (wantSat && !hasSat) this.satelliteLayer.addTo(this.map);
-    if (!wantSat && hasSat) this.map.removeLayer(this.satelliteLayer);
   }
 
   setUserLocation(lat, lon, accuracyM) {

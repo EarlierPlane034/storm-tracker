@@ -61,7 +61,6 @@ export const DEFAULT_SETTINGS = {
     counties: false,
     radarSites: false,
     rangeRings: false,
-    satellite: false,
   },
   favorites: [],                // [{name, lat, lon}]
   bookmarkedStormIds: [],        // storm cell IDs pinned during this session/day

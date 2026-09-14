@@ -71,7 +71,6 @@ export async function captureMap(map, radar, analyses, user) {
     if (prod?.available) {
       await drawTileLayer(ctx, radar.frameUrl(prod, 0), z, origin, size.x, size.y, settings.radarOpacity);
     }
-    await drawTileLayer(ctx, CONFIG.endpoints.basemapLabels, z, origin, size.x, size.y);
 
     const toXY = (lat, lon) => {
       const p = map.project([lat, lon], z);

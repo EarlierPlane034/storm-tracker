@@ -22,10 +22,9 @@ export const CONFIG = {
     spc: 'https://www.spc.noaa.gov/products/outlook',
     // Open-Meteo: HRRR/GFS-derived environmental parameters (CAPE, shear...).
     openMeteo: 'https://api.open-meteo.com/v1',
-    // USGS Topo basemap (free, no API key) + OpenStreetMap labels.
+    // USGS Topo basemap (free, no API key required); used by the snapshot
+    // export, which always renders Topo regardless of the live map's pick.
     basemapDark: 'https://basemap.nationalmap.gov/arcgis/rest/services/USGSTopo/MapServer/tile/{z}/{y}/{x}',
-    basemapLabels: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-    basemapSatellite: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
   },
 
   refresh: {
@@ -49,17 +48,14 @@ export const CONFIG = {
     {
       name: 'Topo',
       dark: 'https://basemap.nationalmap.gov/arcgis/rest/services/USGSTopo/MapServer/tile/{z}/{y}/{x}',
-      labels: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
     },
     {
       name: 'Satellite',
       dark: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-      labels: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
     },
     {
       name: 'OSM',
       dark: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-      labels: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
     },
   ],
 
