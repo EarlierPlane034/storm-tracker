@@ -53,11 +53,12 @@ Legend: ✅ done and verified in code · ☐ not started
 | 385 | Storm abandonment suggestion — if your selected storm is weakening, flags a nearby stronger alternative within 80 km | `js/ui/stormPanel.js` (`abandonmentSuggestion`) |
 | 251 | Storm structure classification (LP/HP/Classic supercell) (already present — confirmed, not newly built) | `js/analysis/stormAnalyzer.js` (VIL/echo-top based classifier) |
 | 237 | VIL / vertically integrated liquid (already present — confirmed, not newly built; a live data field used throughout) | `js/ui/stormPanel.js`, hazard matrix |
+| 374 | Chase corridor width indicator — accounts for ±15° storm-motion uncertainty, shown as a dashed line across the intercept point plus a "fan out ~N mi wide" note | `js/ui/mapView.js` (`renderInterceptGuidance`) |
 | — | Achievements/badges + day-streak (bonus, not numbered) | `js/data/stormDatabase.js` (`getAchievements`) |
 | — | Basemap switcher: Topo/Satellite/OSM (bonus, not numbered) | `js/ui/mapView.js` |
 | — | Mobile layout overflow fixes (tab bar, GPS chip) (bonus) | `css/main.css`, `css/ui-polish.css` |
 
-**42 roadmap items + 3 bonus items shipped.**
+**43 roadmap items + 3 bonus items shipped.**
 
 Already verified as pre-existing/working (not newly built, but confirmed live):
 screen wake-lock during chase (#97), metric/imperial toggle (#135), night
@@ -97,9 +98,17 @@ per your request.
   Leaflet layer group on/off but nothing has ever populated it with county
   geometry, so switching it on currently shows nothing — needs a real county
   boundary data source wired in, held off tonight since this sandboxed
-  environment has no live network to fetch/verify one against.
+  environment has no live network to fetch/verify one against. Escape route
+  planning (#53/#367/#368) was also deliberately skipped tonight — a
+  believable "drive this way to get away from the storm" recommendation
+  needs either real road-network routing (this app already calls a public
+  OSRM server elsewhere, but verifying a new safety-critical routing feature
+  needs live network access this sandbox doesn't have) or careful pursuit-
+  curve math accounting for the storm's own speed, and a rushed version of
+  either felt riskier to ship than to hold for a session with real
+  connectivity to test against.
 
 ## Next up
 
-Building continuously tonight — next candidates: chase corridor width
-indicator, escape route planner, or another radar-visualization item.
+Not decided yet — next session, check the latest chat message for
+what's being built next.

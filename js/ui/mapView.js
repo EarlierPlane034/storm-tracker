@@ -265,9 +265,21 @@ export class MapView {
       ? `No rush — the storm won't be there for a while. You can wait ~${launchDelayMin} min before leaving.`
       : null;
 
+    // Roadmap #374: the storm's forecast motion is never exact — a ±15°
+    // heading error (a reasonable rule of thumb for short-range NEXRAD
+    // motion vectors) fans out to real ground distance the farther out you
+    // project, so "the" intercept point is really a corridor to cover.
+    const HEADING_UNCERTAINTY_DEG = 15;
+    const corridorWidthKm = 2 * distKm * Math.tan(HEADING_UNCERTAINTY_DEG * Math.PI / 180);
+    const corridorLeft = destinationPoint(point[0], point[1], (c.moveDirDeg + 90) % 360, corridorWidthKm / 2);
+    const corridorRight = destinationPoint(point[0], point[1], (c.moveDirDeg + 270) % 360, corridorWidthKm / 2);
+
     this._interceptGroup = L.layerGroup().addTo(this.map);
     this._interceptGroup.addLayer(L.polyline([[user.lat, user.lon], point], {
       color: '#fbbf24', weight: 3, opacity: 0.85, dashArray: '8 6', interactive: false,
+    }));
+    this._interceptGroup.addLayer(L.polyline([corridorLeft, corridorRight], {
+      color: '#fbbf24', weight: 2, opacity: 0.55, dashArray: '2 6', interactive: false,
     }));
     const marker = L.marker(point, {
       icon: L.divIcon({
@@ -284,6 +296,8 @@ export class MapView {
       `Head <strong>${compassDir(headingBrg)}</strong>, ${fmtDistance(distToPointKm, settings.units)} ` +
       `(~${driveMin} min drive). Average ${requiredSpeedText} to arrive right as the storm does.<br>` +
       `<strong>Intercept confidence: ${confidence.label}</strong> (~${confidence.pct}% you're there in time).<br>` +
+      `Its heading could be off ±${HEADING_UNCERTAINTY_DEG}° — fan out about ${fmtDistance(corridorWidthKm, settings.units)} ` +
+      `wide (dashed line) at the intercept point to stay covered.<br>` +
       (launchNote ? `<em>${launchNote}</em><br>` : '') +
       `<em>Position to the side of its path (typically SE of a right-moving storm) — ` +
       `never drive directly into the core. Unofficial guidance.</em>`
