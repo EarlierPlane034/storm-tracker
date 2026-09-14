@@ -52,6 +52,29 @@ forecasting, safety/damage assessment, analytics, mobile, offline/resilience,
 weather data sources). Community-feature items are intentionally deprioritized
 per your request.
 
+## Maintenance / audit passes
+
+- **Tile-quilt bug fix** — the map was silently rendering two basemaps
+  stacked on top of each other (a permanent full-opacity OSM layer plus
+  whatever the basemap switcher had selected), causing the patchwork of
+  mismatched tiles seen on a real device. Removed the stray layer and a
+  redundant, conflicting Satellite toggle. See `js/ui/mapView.js`.
+- **Full audit pass** (static review of every JS/CSS file + an interactive
+  Playwright run through every tab, sub-tab, and toggle): fixed storm-merger
+  detection that computed every cycle but was never shown to the user, a
+  Data Saver toggle that didn't actually slow core data polling, five
+  unbounded in-memory caches during long chase sessions, two unit-preference
+  bugs (chase log export, overshoot-warning HUD), a missing Layers-panel
+  toggle for the mesocyclone overlay, and removed ~40 lines of dead imports/
+  computation. See commit "Audit pass: wire up dead safety data, fix memory
+  growth, unit bugs" for the full list.
+- **Known, deliberately untouched**: the Week 3 "Community" tab (spotter
+  reports / leaderboard / shared tracking) has no submit UI anywhere, so it
+  permanently shows an empty state — left alone since community features
+  are explicitly deprioritized right now. An "Enhanced V2" storm-scoring
+  module exists fully-written but unused; swapping it in for the live
+  scoring path would need real-data validation first, so it wasn't touched.
+
 ## Next up
 
 Not decided yet — will pick from the remaining list next round.
