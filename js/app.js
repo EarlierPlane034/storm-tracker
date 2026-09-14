@@ -650,6 +650,35 @@ let wakeLock = null;
 
 let chaseStartTime = null;
 
+/**
+ * Roadmap #120: a simple, explainable end-of-chase rating out of 10 —
+ * how dangerous the storms you actually caught were (half the score),
+ * adjusted for how much driving it took to find them (the other half).
+ * The GPS track is a single, ever-growing log across all sessions, so
+ * this only sums the breadcrumb points recorded since THIS session
+ * started rather than the whole file.
+ */
+function showChaseEfficiencyToast(sessionStart, storms, durationMin) {
+  const sessionPoints = getTrack().filter((p) => p.t >= sessionStart);
+  let distanceKm = 0;
+  for (let i = 1; i < sessionPoints.length; i++) {
+    distanceKm += haversineKm(sessionPoints[i - 1].lat, sessionPoints[i - 1].lon, sessionPoints[i].lat, sessionPoints[i].lon);
+  }
+  if (!storms.length) {
+    showToast(`Chase session logged — ${durationMin} min, ${fmtDistance(distanceKm, settings.units)} driven, no storms scored this time.`);
+    return;
+  }
+  const avgScore = storms.reduce((s, a) => s + a.severeScore, 0) / storms.length;
+  const kmPerStorm = distanceKm / storms.length;
+  const efficiencyBonus = kmPerStorm < 20 ? 2 : kmPerStorm < 50 ? 1 : kmPerStorm < 100 ? 0 : -1;
+  const rating = Math.max(0, Math.min(10, Math.round(avgScore / 10 + efficiencyBonus)));
+  showToast(
+    `🏁 Chase efficiency: ${rating}/10 — ${storms.length} storm${storms.length === 1 ? '' : 's'} ` +
+    `(avg score ${Math.round(avgScore)}/100) over ${fmtDistance(distanceKm, settings.units)} in ${durationMin} min.`,
+    { ttlMs: 10_000 },
+  );
+}
+
 async function applyChaseMode() {
   const hud = document.getElementById('chase-hud');
   if (settings.chaseMode) {
@@ -675,6 +704,7 @@ async function applyChaseMode() {
       if (durationMin >= 1 && storms.length) {
         week3Panel.stormDatabase.saveSession(storms, durationMin);
       }
+      if (durationMin >= 1) showChaseEfficiencyToast(chaseStartTime, storms, durationMin);
       chaseStartTime = null;
     }
   }
@@ -724,6 +754,15 @@ function updateChaseHud(user) {
     const brg = bearingDeg(user.lat, user.lon, target.cell.lat, target.cell.lon);
     const eta = target.userRel.etaMin != null ? `~${target.userRel.etaMin} min to you` : 'not tracking to you';
     const overshoot = overshootWarning(user, target, brg);
+    const approach = approachPositionText(user, target);
+    const tooClose = target.userRel.distKm < settings.tailgateDistanceKm
+      ? `Too close — ${escapeHud(fmtDistance(target.userRel.distKm, settings.units))} away, inside your ${escapeHud(fmtDistance(settings.tailgateDistanceKm, settings.units))} tailgate limit. Back off.`
+      : null;
+    const noteText = approach
+      ? approach.note
+      : (target.type.id.includes('supercell') || target.type.id === 'supercell'
+        ? 'Right-movers are typically safest viewed from the SE, storm at your NW — never enter the rain core, and keep a paved escape route south or east.'
+        : 'Stay out of the storm\'s path and ahead of the gust front.');
     hud.innerHTML = `
       <div class="hud-title">TARGET · ${escapeHud(target.cell.id)} · ${target.severeScore}/100 ${noteBtn}</div>
       <div class="hud-grid">
@@ -733,10 +772,10 @@ function updateChaseHud(user) {
         <span>You: ${escapeHud(mySpeed)}</span>
         <span>${daylight}</span>
       </div>
+      ${tooClose ? `<div class="hud-warn" style="background:rgba(239,68,68,0.18);border-color:rgba(239,68,68,0.5);color:var(--danger)">🚨 ${tooClose}</div>` : ''}
       ${overshoot ? `<div class="hud-warn">⚠️ ${escapeHud(overshoot)}</div>` : ''}
-      <div class="hud-note">${target.type.id.includes('supercell') || target.type.id === 'supercell'
-        ? 'Right-movers are typically safest viewed from the SE, storm at your NW — never enter the rain core, and keep a paved escape route south or east.'
-        : 'Stay out of the storm\'s path and ahead of the gust front.'} Unofficial guidance — your safety decisions are your own.</div>
+      ${approach ? `<div class="hud-note" style="font-weight:600;color:${approach.tone === 'danger' ? 'var(--danger)' : approach.tone === 'warn' ? 'var(--warn)' : 'var(--ok)'}">${escapeHud(approach.label)}</div>` : ''}
+      <div class="hud-note">${escapeHud(noteText)} Unofficial guidance — your safety decisions are your own.</div>
       ${vitalsLine}`;
     hud.onclick = () => openStormSheet(target);
   }
@@ -785,6 +824,36 @@ function overshootWarning(user, target, brgToTarget) {
   const stormSpeedText = fmtSpeed(c.moveSpeedKts, settings.units);
   return `Closing at ${userSpeedText} vs. the storm's ${stormSpeedText} — ` +
     `ease off or you'll overshoot past a safe standoff distance into its path.`;
+}
+
+/**
+ * Roadmap #380: where you actually are relative to the storm's motion, not
+ * just a generic "right-movers are safest from the SE" rule of thumb. Uses
+ * the storm's real bearing-to-you against its real heading, in the storm's
+ * own frame of reference (0° = directly ahead of it, +90° = off its right
+ * flank, 180° = directly behind) — the same frame chase doctrine uses to
+ * describe the "bear's cage" (front-right) vs. the classic safe viewing
+ * position (right-rear) for a right-moving supercell.
+ */
+function approachPositionText(user, target) {
+  const c = target.cell;
+  if (c.moveDirDeg == null) return null;
+  const stormToUserBrg = bearingDeg(c.lat, c.lon, user.lat, user.lon);
+  const rel = ((stormToUserBrg - c.moveDirDeg + 540) % 360) - 180; // -180..180
+
+  if (Math.abs(rel) <= 25) {
+    return { label: '⚠️ AHEAD — IN ITS PATH', tone: 'danger', note: 'You are ahead of the storm, directly in its forward path — move to the side, not away in a straight line.' };
+  }
+  if (rel > 25 && rel <= 100) {
+    return { label: '⚠️ FRONT-RIGHT — BEAR\'S CAGE RISK', tone: 'danger', note: 'You are on the forward-right side, where hook echoes and new rotation typically form on a right-moving storm. Consider dropping back.' };
+  }
+  if (rel > 100 && rel <= 165) {
+    return { label: '✓ RIGHT-REAR — GOOD POSITION', tone: 'ok', note: 'You are on the right-rear side — the classic safest viewing position for a right-moving storm.' };
+  }
+  if (Math.abs(rel) > 165) {
+    return { label: 'DIRECTLY BEHIND', tone: 'warn', note: 'You are behind the storm, out of its forward path, but likely in reduced visibility from rain-wrapped outflow.' };
+  }
+  return { label: 'LEFT SIDE — ATYPICAL ANGLE', tone: 'warn', note: 'You are on the left side of the storm\'s motion — an unusual viewing angle with less predictable behavior.' };
 }
 
 /** "Sunset 8:42 PM · 2h 10m of light" or an after-dark caution. */

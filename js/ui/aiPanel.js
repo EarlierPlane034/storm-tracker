@@ -403,6 +403,12 @@ function buildEnvDiscussion(env) {
       ? `cloud bases are low (LCL ≈ ${Math.round(env.lclM)} m) — a tornado-favorable signal`
       : `cloud bases sit near ${Math.round(env.lclM)} m`);
   }
+  if (env.freezingLevelM != null) {
+    const freezingKft = Math.round(env.freezingLevelM * 3.28084 / 1000);
+    p.push(env.freezingLevelM < 3500
+      ? `the freezing level is low (~${freezingKft} kft) — hail has less time to melt on the way down, so expect larger stones`
+      : `the freezing level sits near ${freezingKft} kft`);
+  }
   let out = `${p.join('; ')}.`;
   out += ` Source: ${env.model}, valid ${env.time.toUTCString().slice(17, 22)}Z.`;
   return out;

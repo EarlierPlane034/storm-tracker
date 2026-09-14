@@ -64,6 +64,8 @@ export function renderSettings({ onChanged, onRequestNotifications, onRouteCheck
   section('Storm chasing');
   toggleRow('Intercept guidance', 'Map pin + route showing where the nearest dangerous storm is headed and how to get there', 'interceptGuidance');
   toggleRow('Chase mode', 'On-map HUD with bearing/ETA to your target storm, your speed, and keeps the screen awake', 'chaseMode');
+  selectRow('Tailgate distance', 'Chase HUD warns if you get closer than this to your target storm', 'tailgateDistanceKm',
+    [[1, '1 km (~0.6 mi)'], [2, '2 km (~1.2 mi)'], [3, '3 km (~1.9 mi) — default'], [5, '5 km (~3.1 mi)'], [8, '8 km (~5 mi)']]);
   toggleRow('Follow me', 'Auto-center the map on your position as you drive', 'followMe');
   toggleRow('Spoken alerts', 'Speak dangerous alerts aloud — plays through CarPlay/Bluetooth car audio', 'voiceAlerts');
   toggleRow('Data saver', 'Slower refresh (5 min) for weak cell signal in the field', 'dataSaver');

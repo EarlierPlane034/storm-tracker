@@ -45,11 +45,15 @@ Legend: ✅ done and verified in code · ☐ not started
 | 375, 376, 377 | Intercept confidence meter, speed recommendation, delayed-launch timer — added to the existing intercept-guidance popup | `js/ui/mapView.js` (`renderInterceptGuidance`) |
 | 339 | Alert cooldown timer (already present — confirmed, not newly built; 30-min dedupe on every alert) | `js/alerts/alertEngine.js` (`once`, `DEDUPE_MS`) |
 | 384, 388 | Chase decision support AI / pre-chase success prediction (already present — confirmed, not newly built) | `js/chase/chaseSafety.js` (`ChaseDecisionScore`) |
+| 69 | Freezing level height — data was already fetched and used in scoring, just never shown; added to the AI environment discussion | `js/ui/aiPanel.js` (`buildEnvDiscussion`) |
+| 380 | Storm approach angle indicator — chase HUD now computes your actual quadrant relative to the storm's real motion (ahead/bear's-cage/right-rear/behind/left) instead of a static "safest from the SE" tip | `js/app.js` (`approachPositionText`) |
+| 382 | Tailgate distance meter — adjustable safe-following-distance setting; HUD warns if you're closer than that to the target storm | `js/storage.js`, `js/app.js`, `js/ui/settingsPanel.js` |
+| 120 | Chase efficiency rating — a 0–10 score shown when a chase session ends, from storm severity caught vs. distance driven | `js/app.js` (`showChaseEfficiencyToast`) |
 | — | Achievements/badges + day-streak (bonus, not numbered) | `js/data/stormDatabase.js` (`getAchievements`) |
 | — | Basemap switcher: Topo/Satellite/OSM (bonus, not numbered) | `js/ui/mapView.js` |
 | — | Mobile layout overflow fixes (tab bar, GPS chip) (bonus) | `css/main.css`, `css/ui-polish.css` |
 
-**34 roadmap items + 3 bonus items shipped.**
+**38 roadmap items + 3 bonus items shipped.**
 
 Already verified as pre-existing/working (not newly built, but confirmed live):
 screen wake-lock during chase (#97), metric/imperial toggle (#135), night
@@ -94,5 +98,5 @@ per your request.
 ## Next up
 
 Building continuously tonight — next candidates: chase corridor width
-indicator, escape route planner, storm approach angle indicator, or a
+indicator, escape route planner, storm abandonment suggestion, or a
 radar-visualization item.
