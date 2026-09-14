@@ -524,6 +524,20 @@ function renderLegend(prod) {
     el('span', { text: prod.legend.note || '' }),
     el('span', { text: String(prod.legend.max) }),
   ]));
+  // Quick declutter switch — on a busy outbreak day the storm-score
+  // markers can pile up and bury the radar underneath them; this is the
+  // fastest way to clear them without digging into the Layers panel.
+  const cellsOn = !!settings.layers.cells;
+  legend.appendChild(el('button', {
+    class: 'legend-toggle-btn',
+    text: cellsOn ? '👁 Storms: On' : '👁 Storms: Off',
+    onclick: (e) => {
+      e.stopPropagation();
+      setSetting('layers.cells', !cellsOn);
+      mapView.syncLayerVisibility();
+      renderLegend(prod);
+    },
+  }));
 }
 
 function wireAnimBar() {

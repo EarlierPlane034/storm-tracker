@@ -548,7 +548,7 @@ export class Week3FeaturesPanel {
         <div class="chart-card">
           <h3>📊 Multi-Storm Comparison</h3>
           <div id="chart-comparison" class="chart-container">
-            ${this.selectedStorms.length > 1 ? '' : '<div class="muted chart-empty">Select 2+ storms to compare them here</div>'}
+            ${this.selectedAnalyses.length > 1 ? '' : '<div class="muted chart-empty">Select 2+ storms to compare them here</div>'}
           </div>
         </div>
 
@@ -563,10 +563,10 @@ export class Week3FeaturesPanel {
     structureViz.initialize();
     structureViz.renderCrossSection(this.selectedStorm, 'N-S');
 
-    if (this.selectedStorms.length > 1) {
+    if (this.selectedAnalyses.length > 1) {
       const comparison = new MultiStormComparison('chart-comparison');
       comparison.initialize();
-      comparison.renderComparison(this.selectedStorms, 'severeScore');
+      comparison.renderComparison(this.selectedAnalyses, 'severeScore');
     }
 
     const forecastGraph = new ForecastGraph('chart-forecast');

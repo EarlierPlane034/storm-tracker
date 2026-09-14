@@ -76,6 +76,34 @@ per your request.
 
 ## Maintenance / audit passes
 
+- **OSM basemap black holes** — the basemap switcher requested OSM tiles
+  round-robining through subdomains a/b/c/d, but OpenStreetMap only has
+  a/b/c — every request to the nonexistent 'd' host silently failed,
+  leaving ~1 in 4 tiles black (Topo/Satellite were unaffected, since
+  their ArcGIS URLs don't use subdomain sharding). Switched OSM to the
+  single tile.openstreetmap.org host. See `js/config.js`.
+- **main branch deploy gap** — GitHub Pages (`.github/workflows/deploy-
+  pages.yml`) only deploys on push to `main`, but every fix this session
+  went to the feature branch per the task's branch instructions — `main`
+  was stuck 10 commits behind, so none of it was actually live. Fast-
+  forwarded `main` to the feature branch (safe: `main` was a strict
+  ancestor) and will keep doing so after each fix so the live site stays
+  current.
+- **Storms on/off toggle** — a quick "👁 Storms" button was added right
+  into the radar legend so a cluttered outbreak-day map (dozens of
+  overlapping score badges burying the radar) can be decluttered in one
+  tap, without digging into the Layers panel. Uses the layer toggle that
+  already existed (`settings.layers.cells`) — just made it reachable
+  from the map itself.
+- **Multi-Storm Comparison chart was silently broken** — passed bare
+  cell objects (`.cell.id` undefined, `.severeScore` undefined) into a
+  renderer expecting full analysis objects; threw on the first bar and
+  drew nothing, with no visible error. Fixed to pass the already-tracked
+  `selectedAnalyses` array instead. See `js/ui/week3FeaturesPanel.js`.
+- **Training tab "Accuracy: NaN%"** — same 0/0-division class of bug
+  fixed earlier for History → Seasonal Stats, this time in the storm ID
+  game's leaderboard before any games have been played. See
+  `js/education/stormTraining.js`.
 - **Tile-quilt bug fix** — the map was silently rendering two basemaps
   stacked on top of each other (a permanent full-opacity OSM layer plus
   whatever the basemap switcher had selected), causing the patchwork of

@@ -335,8 +335,11 @@ export class StormIdentificationGame {
    * Get leaderboard (local only)
    */
   getLeaderboard() {
+    const accuracy = this.userStats.gamesPlayed
+      ? `${((this.userStats.correctAnswers / this.userStats.gamesPlayed) * 100).toFixed(1)}%`
+      : 'N/A';
     return {
-      accuracy: `${((this.userStats.correctAnswers / this.userStats.gamesPlayed) * 100).toFixed(1)}%`,
+      accuracy,
       gamesPlayed: this.userStats.gamesPlayed,
       streak: this.userStats.streak,
       highScore: this.userStats.highScore,

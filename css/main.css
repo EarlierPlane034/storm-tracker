@@ -338,6 +338,13 @@ canvas[style*="background: black"] {
 .legend-bar { display: flex; height: 8px; border-radius: 4px; overflow: hidden; margin: 4px 0; width: 120px; }
 .legend-bar span { flex: 1; }
 .legend-labels { display: flex; justify-content: space-between; }
+.legend-toggle-btn {
+  display: block; width: 100%; margin-top: 6px; padding: 4px 6px;
+  font-family: var(--mono); font-size: 9px; color: var(--text);
+  background: var(--bg-raised); border: 1px solid var(--border); border-radius: 6px;
+  cursor: pointer; text-align: center;
+}
+.legend-toggle-btn:active { background: var(--accent-dim); }
 
 /* ---------- GPS chip ---------- */
 .gps-chip {
