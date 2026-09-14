@@ -103,12 +103,10 @@ async function refreshObservations() {
   catch (err) { console.warn('[sources] obs refresh failed', err); }
 }
 
-/** Kick everything off and start the refresh clocks. */
-export function start() {
-  refreshCells();
-  refreshAlerts();
-  refreshReports();
-  refreshOutlook();
+/** (Re)create the polling intervals using the current refresh-rate setting. */
+function startTimers() {
+  timers.forEach(clearInterval);
+  timers.length = 0;
 
   const base = Math.max(30, settings.refreshIntervalSec) * 1000;
   timers.push(setInterval(refreshCells, Math.max(base, CONFIG.refresh.cellsMs)));
@@ -119,6 +117,16 @@ export function start() {
   timers.push(setInterval(refreshObservations, CONFIG.refresh.reportsMs));
   timers.push(setInterval(refreshWeek, 3 * 3600_000));
   timers.push(setInterval(refreshForecast, 1800_000));
+}
+
+/** Kick everything off and start the refresh clocks. */
+export function start() {
+  refreshCells();
+  refreshAlerts();
+  refreshReports();
+  refreshOutlook();
+
+  startTimers();
 
   // Refresh instantly when the PWA returns to the foreground — the primary
   // "background sync" path on iOS where the SyncManager API is unavailable.
@@ -128,6 +136,12 @@ export function start() {
   navigator.serviceWorker?.addEventListener?.('message', (e) => {
     if (e.data?.type === 'refresh') refreshAll();
   });
+}
+
+/** Re-apply settings.refreshIntervalSec to the live polling clocks (e.g.
+ * after the user toggles Data Saver) — start() only reads it once. */
+export function applyRefreshInterval() {
+  startTimers();
 }
 
 export function refreshAll() {

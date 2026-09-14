@@ -10,6 +10,7 @@ import { EnvironmentalOverlay, formatEnvironment, calculateERV } from './environ
 import { getStormTrends, predictStormMovement, calculateGrowthRate } from '../analysis/stormTrendAnalysis.js';
 import { StormMetricsAnimation, HailScatterPlot, TornadoRiskMap, renderLeaderboard } from './dataVisualizations.js';
 import { RenderOptimizer, MobileOptimizer } from './renderOptimization.js';
+import { debounce } from '../utils.js';
 
 export class AdvancedAnalysisPanel {
   constructor(containerId, map) {
@@ -66,10 +67,10 @@ export class AdvancedAnalysisPanel {
       });
     });
 
-    window.addEventListener('resize', () => {
+    window.addEventListener('resize', debounce(() => {
       this.mobileOptimizer.isPortrait = window.innerHeight > window.innerWidth;
       this.layout();
-    });
+    }, 150));
   }
 
   /**

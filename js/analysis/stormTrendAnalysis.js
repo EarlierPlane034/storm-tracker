@@ -230,6 +230,15 @@ export function clearStormHistory(stormId) {
   stormLifecycles.delete(stormId);
 }
 
+/** Drop tracking for storm IDs no longer present in the current cell feed
+ * (each entry's own samples are already capped to 60 min, but the Map
+ * itself grows by one key per storm ever seen without this). */
+export function pruneStormHistory(activeIds) {
+  for (const id of stormHistory.keys()) {
+    if (!activeIds.has(id)) clearStormHistory(id);
+  }
+}
+
 /**
  * Get all storms in database
  */

@@ -10,7 +10,7 @@ import * as sources from './api/sources.js';
 import { RadarController } from './radar/radarController.js';
 import { MapView } from './ui/mapView.js';
 import { analyzeStorms } from './analysis/stormAnalyzer.js';
-import { rememberAnalysis, tickerHeadline } from './analysis/narrative.js';
+import { rememberAnalysis, pruneNarrative, tickerHeadline } from './analysis/narrative.js';
 import { renderStormList, openStormSheet, initStormSheet, configureStormSheet } from './ui/stormPanel.js';
 import { renderAlerts } from './ui/alertsPanel.js';
 import { renderAiPanel } from './ui/aiPanel.js';
@@ -33,7 +33,7 @@ import { AdvancedAnalysisPanel } from './ui/advancedAnalysisPanel.js';
 import { Week3FeaturesPanel } from './ui/week3FeaturesPanel.js';
 import { FeatureDashboard } from './ui/featureDashboard.js';
 import { showQuickStartGuide } from './ui/quickStartGuide.js';
-import { recordStormMetrics } from './analysis/stormTrendAnalysis.js';
+import { recordStormMetrics, pruneStormHistory } from './analysis/stormTrendAnalysis.js';
 import { searchCities } from './data/cities.js';
 import { searchGlossary } from './data/glossary.js';
 
@@ -319,6 +319,9 @@ const reanalyze = debounce(() => {
   const { cells, alerts, reports, environment } = sources.getState();
   const user = geo.getLocation();
   analyses = analyzeStorms(cells, environment, alerts, reports, user);
+  const activeIds = new Set(analyses.map((a) => a.cell.id));
+  pruneStormHistory(activeIds);
+  pruneNarrative(activeIds);
 
   // Record metrics for trend analysis
   analyses.forEach((a) => {
@@ -776,7 +779,9 @@ function overshootWarning(user, target, brgToTarget) {
   const stormKmh = c.moveSpeedKts * 1.852;
   if (userKmh - stormKmh < 15) return null; // not closing meaningfully faster
 
-  return `Closing at ${Math.round(userKmh)} km/h vs. the storm's ${Math.round(stormKmh)} km/h — ` +
+  const userSpeedText = fmtSpeed(user.speedMps * 1.94384, settings.units);
+  const stormSpeedText = fmtSpeed(c.moveSpeedKts, settings.units);
+  return `Closing at ${userSpeedText} vs. the storm's ${stormSpeedText} — ` +
     `ease off or you'll overshoot past a safe standoff distance into its path.`;
 }
 
@@ -1098,11 +1103,13 @@ function wireChrome() {
         settings.animFps = settings.dataSaver ? 2 : 4;
         setSetting('refreshIntervalSec', settings.refreshIntervalSec);
         radar.rebuild();
+        sources.applyRefreshInterval();
         showToast(settings.dataSaver
-          ? 'Data saver ON — radar refreshes every 5 min to stretch weak signal.'
+          ? 'Data saver ON — radar and storm data refresh every 5 min to stretch weak signal.'
           : 'Data saver off — back to 1-minute refresh.');
       }
       if (path.startsWith('radar') || path === 'colorTable') radar.applyStyle();
+      if (path === 'refreshIntervalSec') sources.applyRefreshInterval();
       if (path === 'refreshIntervalSec' || path === 'animFps') radar.rebuild();
       if (['units', 'monitorRadiusKm', 'aiSensitivity', 'showTechnical',
         'minCellScore', 'onlyNearby'].includes(path)) reanalyze();

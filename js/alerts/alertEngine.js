@@ -226,6 +226,10 @@ export function evaluateStorms(analyses, user) {
     // Tornado chance band rising.
     const prevBand = lastTorBand.get(c.id);
     lastTorBand.set(c.id, a.tornado.label);
+    // Opportunistic cleanup — same pattern as `fired` above (this map has
+    // no timestamps to age out, so just reset it once it's grown large;
+    // worst case a since-changed band re-reports once after the reset).
+    if (lastTorBand.size > 300) lastTorBand.clear();
     if (en.torChanceRising && prevBand && bandRank(a.tornado.label) > bandRank(prevBand) && a.tornado.score >= 41) {
       once(`torband:${c.id}:${a.tornado.label}`, () => deliver(
         'Tornado chance increasing',
@@ -269,6 +273,23 @@ export function evaluateStorms(analyses, user) {
           `${a.type.label} ${dist} away: AI wind severity ${a.scores.wind}/100 (your threshold: ${th.windScore}).`,
           'warn'));
       }
+    }
+  }
+
+  // Two significant storms projected to merge — computed every cycle by
+  // analyzeStorms() (attached as analyses.mergers) but never surfaced
+  // until now. Only alert for a pair with at least one storm in range.
+  if (en.stormMerger) {
+    for (const m of analyses.mergers || []) {
+      const s1 = analyses.find((a) => a.cell.id === m.storm1Id);
+      const s2 = analyses.find((a) => a.cell.id === m.storm2Id);
+      const near = (s) => s?.userRel && s.userRel.distKm <= radius;
+      if (!near(s1) && !near(s2)) continue;
+      once(`merge:${[m.storm1Id, m.storm2Id].sort().join('+')}`, () => deliver(
+        '⚠️ Storms merging nearby',
+        `${m.storm1Name} and ${m.storm2Name} are ${fmtDistance(m.currentDistanceKm, settings.units)} apart and closing — ` +
+        `projected to merge in ~${m.estimatedMergeTimeMin} min. A merger can sharply increase combined severity.`,
+        m.alertLevel === 'critical' ? 'danger' : 'warn'));
     }
   }
 }

@@ -37,6 +37,13 @@ export function getScoreChange(a) {
   };
 }
 
+/** Drop remembered snapshots for storm IDs no longer in the current feed. */
+export function pruneNarrative(activeIds) {
+  for (const id of previous.keys()) {
+    if (!activeIds.has(id)) previous.delete(id);
+  }
+}
+
 /** One-paragraph plain-English storm summary. */
 export function stormSummary(a) {
   const c = a.cell;

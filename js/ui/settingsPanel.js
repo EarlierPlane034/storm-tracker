@@ -169,6 +169,7 @@ export function renderSettings({ onChanged, onRequestNotifications, onRouteCheck
   toggleRow('Tornado chance rising', null, 'alertsEnabled.torChanceRising');
   toggleRow('Rapid intensification', null, 'alertsEnabled.rapidIntensification');
   toggleRow('Storm approaching me', null, 'alertsEnabled.approachingStorm');
+  toggleRow('Storms merging nearby', 'Two significant storms converging can spike combined severity', 'alertsEnabled.stormMerger');
   selectRow('Alert language', 'Alert titles, shelter instructions and spoken alerts', 'language',
     [['en', 'English'], ['es', 'Español']]);
   toggleRow('Haptic alerts', 'Vibration patterns by severity (Android only — iOS blocks web vibration)', 'hapticAlerts');

@@ -49,6 +49,7 @@ export const DEFAULT_SETTINGS = {
     torChanceRising: true,
     rapidIntensification: true,
     approachingStorm: true,
+    stormMerger: true,
   },
   layers: {
     warnings: true,
@@ -61,6 +62,7 @@ export const DEFAULT_SETTINGS = {
     counties: false,
     radarSites: false,
     rangeRings: false,
+    mesocyclones: true,
   },
   favorites: [],                // [{name, lat, lon}]
   bookmarkedStormIds: [],        // storm cell IDs pinned during this session/day

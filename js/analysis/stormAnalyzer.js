@@ -14,23 +14,15 @@
  * These are heuristic interpretations of official data — clearly labelled
  * as unofficial everywhere they surface in the UI.
  */
-import { clamp, scaleTo, haversineKm } from '../utils.js';
+import { clamp, scaleTo, haversineKm, fmtSpeed } from '../utils.js';
 import { settings } from '../storage.js';
 import {
   recordSample, getHistory, pruneStale, stormTrend,
   rotationPersistence, isRapidlyIntensifying, trendOf, lifecycleStage,
 } from './trends.js';
 import { analyzeTornadoPotential } from './tornadoIntelligence.js';
-import {
-  calculateEnhancedTornadoScore,
-  calculateEnhancedHailScore,
-  calculateEnhancedWindScore,
-  calculateEnhancedLightningScore,
-  assessMesocycloneStrength,
-  detectRapidIntensification,
-} from '../ai/stormScoringV2.js';
-import { detectMesocyclones, trackMesocyclones } from '../radar/mesocycloneDetector.js';
-import { detectStormMergers, detectStormIntensification, detectRotationDevelopment } from '../alerts/stormEvolution.js';
+import { detectMesocyclones, trackMesocyclones, cleanupStaleTracks } from '../radar/mesocycloneDetector.js';
+import { detectStormMergers, cleanupStaleScores } from '../alerts/stormEvolution.js';
 
 /** Sensitivity multipliers applied to final scores. */
 const SENSITIVITY = { conservative: 0.85, balanced: 1.0, aggressive: 1.15 };
@@ -47,6 +39,8 @@ export function analyzeStorms(cells, environment, alerts, reports, user) {
   const now = Date.now();
   const activeIds = new Set(cells.map((c) => c.id));
   pruneStale(activeIds);
+  cleanupStaleScores();
+  cleanupStaleTracks();
 
   const results = cells.map((cell) => {
     // Record BEFORE scoring so trends include the current volume scan.
@@ -63,18 +57,9 @@ export function analyzeStorms(cells, environment, alerts, reports, user) {
   results.sort((a, b) => b.severeScore - a.severeScore);
   results.forEach((r, i) => { r.rank = i + 1; });
 
-  // === NEW: Detect storm evolution events ===
-  // Merger detection (storms converging)
-  const mergers = detectStormMergers(results);
-  results.mergers = mergers;
-
-  // Intensification & rotation development per storm
-  results.forEach(storm => {
-    const intensification = detectStormIntensification(storm);
-    if (intensification) {
-      storm.evolutionEvent = intensification;
-    }
-  });
+  // Storms projected to merge within 30 min — surfaced as an alert in
+  // alertEngine.js's evaluateStorms() (analyses.mergers).
+  results.mergers = detectStormMergers(results);
 
   return results;
 }
@@ -140,7 +125,7 @@ function analyzeCell(cell, env, alerts, reports, user, allCells) {
   wind += scaleTo(cell.maxDbz, 50, 70, 30);
   wind += scaleTo(cell.vil, 30, 65, 20);
   wind += scaleTo(cell.moveSpeedKts, 25, 55, 20);
-  if (cell.moveSpeedKts >= 35) factors.push({ hazard: 'wind', weight: 15, text: `fast storm motion (${Math.round(cell.moveSpeedKts)} kt) favors damaging straight-line gusts` });
+  if (cell.moveSpeedKts >= 35) factors.push({ hazard: 'wind', weight: 15, text: `fast storm motion (${fmtSpeed(cell.moveSpeedKts, settings.units)}) favors damaging straight-line gusts` });
   // Downburst proxy: tall high-VIL storm whose core height is collapsing.
   if (trendOf(cell.id, 'maxDbzHeightKft', 15) < -0.3 && cell.vil > 40) {
     wind += 18;
@@ -162,7 +147,7 @@ function analyzeCell(cell, env, alerts, reports, user, allCells) {
   flood += scaleTo(cell.maxDbz, 45, 60, 30);
   if (cell.moveSpeedKts != null && cell.moveSpeedKts < 12) {
     flood += 25;
-    factors.push({ hazard: 'flood', weight: 25, text: `slow storm motion (${Math.round(cell.moveSpeedKts)} kt) prolongs heavy rainfall over the same areas` });
+    factors.push({ hazard: 'flood', weight: 25, text: `slow storm motion (${fmtSpeed(cell.moveSpeedKts, settings.units)}) prolongs heavy rainfall over the same areas` });
   }
   // Training proxy: another strong cell upstream moving along the same track.
   const training = allCells.some((o) =>

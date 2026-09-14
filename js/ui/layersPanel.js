@@ -12,6 +12,7 @@ const LAYERS = [
   ['metar', 'Surface stations', 'Nearby METAR observations'],
   ['radarSites', 'Radar sites', 'WSR-88D locations; active site highlighted'],
   ['rangeRings', 'Range rings', '25/50/100 mi rings centered on your location'],
+  ['mesocyclones', 'Mesocyclones', 'Rotation centers and movement trails detected on radar'],
 ];
 
 export function renderLayers({ onChanged, onGlance, onTornadoHistory }) {

@@ -3,7 +3,8 @@
  * listed (and exportable via the share sheet) in Settings. Stored only in
  * localStorage on this device.
  */
-import { el, fmtTimeLocal, downloadFile, escapeHtml } from '../utils.js';
+import { el, fmtTimeLocal, fmtDistance, downloadFile, escapeHtml } from '../utils.js';
+import { settings } from '../storage.js';
 import { showToast } from './toasts.js';
 
 const KEY = 'stormlens.journal.v1';
@@ -166,7 +167,7 @@ export function chaseSummaryText() {
       km += Math.hypot(dLat, dLon);
     }
     const from = new Date(track[0].t), to = new Date(track[track.length - 1].t);
-    lines.push(`Track: ${track.length} points, ~${Math.round(km * 0.621)} mi, ${from.toLocaleString()} → ${to.toLocaleTimeString()}`);
+    lines.push(`Track: ${track.length} points, ~${fmtDistance(km, settings.units)}, ${from.toLocaleString()} → ${to.toLocaleTimeString()}`);
   }
   for (const n of notes) {
     const gps = n.lat != null ? ` (${n.lat.toFixed(3)}, ${n.lon.toFixed(3)})` : '';
