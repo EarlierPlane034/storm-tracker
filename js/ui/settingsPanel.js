@@ -55,11 +55,21 @@ export function renderSettings({ onChanged, onRequestNotifications, onRouteCheck
   selectRow('Animation speed', null, 'animFps', [[1, 'Slow (1 fps)'], [2, '2 fps'], [4, 'Normal (4 fps)'], [6, '6 fps'], [8, 'Fast (8 fps)']]);
   selectRow('Color table', null, 'colorTable', [['classic', 'Classic'], ['enhanced', 'Enhanced contrast'], ['grayscale', 'Grayscale']]);
   toggleRow('Radar smoothing', 'Softens pixel edges', 'radarSmoothing');
+
+  // Roadmap #100: one clearly-labeled home for every readability/sensory
+  // setting, instead of the visual ones being buried under "Radar" (where
+  // they used to live) while haptics/voice sit elsewhere under their own
+  // delivery-channel sections. Reduced-motion isn't listed here — it
+  // already follows the OS-level prefers-reduced-motion setting in CSS,
+  // which needs no in-app toggle.
+  section('Accessibility');
   toggleRow('Night mode', 'Dim red theme for driving in the dark', 'nightMode');
   toggleRow('Color-blind friendly colors', 'Blue/yellow/orange/purple severity scale instead of green/red', 'colorblindMode');
   toggleRow('Large text', 'Bigger text on storm cards, stats and lists', 'largeText');
   toggleRow('High contrast', 'Brighter text and borders for bright-sunlight readability', 'highContrast');
   selectRow('Font', null, 'fontFamily', [['sans', 'Sans-serif (default)'], ['serif', 'Serif']]);
+  toggleRow('Haptic alerts', 'Vibration patterns by severity (Android only — iOS blocks web vibration)', 'hapticAlerts');
+  toggleRow('Spoken alerts', 'Speak dangerous alerts aloud — plays through CarPlay/Bluetooth car audio', 'voiceAlerts');
 
   section('Storm chasing');
   toggleRow('Intercept guidance', 'Map pin + route showing where the nearest dangerous storm is headed and how to get there', 'interceptGuidance');
@@ -67,7 +77,6 @@ export function renderSettings({ onChanged, onRequestNotifications, onRouteCheck
   selectRow('Tailgate distance', 'Chase HUD warns if you get closer than this to your target storm', 'tailgateDistanceKm',
     [[1, '1 km (~0.6 mi)'], [2, '2 km (~1.2 mi)'], [3, '3 km (~1.9 mi) — default'], [5, '5 km (~3.1 mi)'], [8, '8 km (~5 mi)']]);
   toggleRow('Follow me', 'Auto-center the map on your position as you drive', 'followMe');
-  toggleRow('Spoken alerts', 'Speak dangerous alerts aloud — plays through CarPlay/Bluetooth car audio', 'voiceAlerts');
   toggleRow('Data saver', 'Slower refresh (5 min) for weak cell signal in the field', 'dataSaver');
   host.appendChild(el('div', { class: 'setting-row' }, [
     el('label', { html: 'Share my location<span class="hint">Sends your exact GPS coordinates + a timestamp — for texting a contact in an emergency</span>' }),
@@ -175,7 +184,6 @@ export function renderSettings({ onChanged, onRequestNotifications, onRouteCheck
   toggleRow('Storms merging nearby', 'Two significant storms converging can spike combined severity', 'alertsEnabled.stormMerger');
   selectRow('Alert language', 'Alert titles, shelter instructions and spoken alerts', 'language',
     [['en', 'English'], ['es', 'Español']]);
-  toggleRow('Haptic alerts', 'Vibration patterns by severity (Android only — iOS blocks web vibration)', 'hapticAlerts');
   toggleRow('Sound alerts', 'Play a tone (tornado siren / warning tone / ping by hazard) in addition to vibration', 'soundAlerts');
   toggleRow('Quiet hours', 'Mute sound/vibration/voice/push overnight — tornado-warning-level alerts still break through', 'quietHours.enabled');
   const hourOptions = Array.from({ length: 24 }, (_, h) => [h, hourLabel(h)]);

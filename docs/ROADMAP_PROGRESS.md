@@ -54,11 +54,13 @@ Legend: ✅ done and verified in code · ☐ not started
 | 251 | Storm structure classification (LP/HP/Classic supercell) (already present — confirmed, not newly built) | `js/analysis/stormAnalyzer.js` (VIL/echo-top based classifier) |
 | 237 | VIL / vertically integrated liquid (already present — confirmed, not newly built; a live data field used throughout) | `js/ui/stormPanel.js`, hazard matrix |
 | 374 | Chase corridor width indicator — accounts for ±15° storm-motion uncertainty, shown as a dashed line across the intercept point plus a "fan out ~N mi wide" note | `js/ui/mapView.js` (`renderInterceptGuidance`) |
+| 100 | Accessibility panel — a dedicated Settings section (was scattered under "Radar" and elsewhere): night mode, colorblind palette, large text, high contrast, font, haptics, spoken alerts. Reduced motion already follows the OS `prefers-reduced-motion` setting, no toggle needed | `js/ui/settingsPanel.js` |
+| 44, 48 | Hazard zone timer / persistent alert ticker (already present — confirmed, not newly built): TOA (+15/+30/+45 min) labels on projected storm tracks, and a live count badge on the Alerts tab | `js/ui/mapView.js` (`.toa-label`), `js/app.js` (`updateAlertBadge`) |
 | — | Achievements/badges + day-streak (bonus, not numbered) | `js/data/stormDatabase.js` (`getAchievements`) |
 | — | Basemap switcher: Topo/Satellite/OSM (bonus, not numbered) | `js/ui/mapView.js` |
 | — | Mobile layout overflow fixes (tab bar, GPS chip) (bonus) | `css/main.css`, `css/ui-polish.css` |
 
-**43 roadmap items + 3 bonus items shipped.**
+**46 roadmap items + 3 bonus items shipped.**
 
 Already verified as pre-existing/working (not newly built, but confirmed live):
 screen wake-lock during chase (#97), metric/imperial toggle (#135), night
