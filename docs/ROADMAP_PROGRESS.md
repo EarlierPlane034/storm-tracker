@@ -33,12 +33,17 @@ Legend: ✅ done and verified in code · ☐ not started
 | 139 | Color-blind mode | `js/storage.js`, `js/utils.js` (`severityColor`) |
 | 172 | Glossary modal | `js/data/glossary.js`, `js/app.js` (`wireGlossary`) |
 | 191 | Storm overshoot prediction (warns when you're closing on a storm faster than it's moving, heading straight at it) | `js/app.js` (`overshootWarning`, chase HUD) |
+| 30 | Storm hazard matrix (table view: dist/score/tornado%/hail/wind/lightning for every visible storm) | `js/ui/stormPanel.js` (`renderHazardMatrix`, Cards/Table toggle) |
+| 46 | Fade-in alerts (already present — confirmed, not newly built) | `css/main.css` (`toast-in` keyframes) |
+| 71 | Chase day summary (text, not PDF — shareable via native share sheet; already present, confirmed not newly built) | `js/ui/journal.js` (`chaseSummaryText`, "Share log" button) |
+| 74 | KML chase-track export (already present — confirmed, not newly built) | `js/ui/journal.js` (`exportTrackKml`) |
+| 75 | JSON storm report export | `js/ui/stormPanel.js` (`exportStormsJson`) |
 | 195 | Tornado shelter locator | `js/chase/chaseSafety.js` (`SafeHavenFinder`, now wired to real GPS) |
 | — | Achievements/badges + day-streak (bonus, not numbered) | `js/data/stormDatabase.js` (`getAchievements`) |
 | — | Basemap switcher: Topo/Satellite/OSM (bonus, not numbered) | `js/ui/mapView.js` |
 | — | Mobile layout overflow fixes (tab bar, GPS chip) (bonus) | `css/main.css`, `css/ui-polish.css` |
 
-**24 roadmap items + 3 bonus items shipped.**
+**28 roadmap items + 3 bonus items shipped.**
 
 Already verified as pre-existing/working (not newly built, but confirmed live):
 screen wake-lock during chase (#97), metric/imperial toggle (#135), night
@@ -77,4 +82,6 @@ per your request.
 
 ## Next up
 
-Not decided yet — will pick from the remaining list next round.
+Not decided yet — will pick from the remaining list next round (likely
+candidates: multi-point route builder, chase corridor width indicator,
+storm-relative reflectivity display, or another safety/chasing tool).

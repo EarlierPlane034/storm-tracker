@@ -28,6 +28,62 @@ function toggleBookmark(stormId) {
 /** True once a scan's timestamp is old enough that the UI should flag it. */
 const isStale = (valid) => !!valid && Date.now() - valid.getTime() > CONFIG.refresh.staleAfterMs;
 
+/** Dense comparison table of every visible storm — roadmap #30. */
+function renderHazardMatrix(analyses, onSelect) {
+  const wrap = el('div', { class: 'card', style: 'overflow-x:auto; padding:8px' });
+  const table = el('table', { class: 'hazard-matrix' });
+  table.appendChild(el('thead', {}, [
+    el('tr', {}, [
+      'Storm', 'Dist', 'Score', 'TOR%', 'Hail', 'Wind', 'LTG',
+    ].map((h) => el('th', { text: h }))),
+  ]));
+  const tbody = el('tbody');
+  for (const a of analyses.slice(0, 60)) {
+    const c = a.cell;
+    const tr = el('tr', { style: 'cursor:pointer' });
+    tr.addEventListener('click', () => onSelect(a));
+    tr.appendChild(el('td', { html: `<strong>${escapeHtml(a.type.label)}</strong><span class="hint">${escapeHtml(c.id)}</span>` }));
+    tr.appendChild(el('td', { text: a.userRel ? fmtDistance(a.userRel.distKm, settings.units) : '—' }));
+    tr.appendChild(el('td', {
+      html: `<span class="${scoreClass(a.severeScore)}" style="padding:2px 6px;border-radius:4px">${a.severeScore}</span>`,
+    }));
+    tr.appendChild(el('td', { text: `${a.tornado.score}%` }));
+    tr.appendChild(el('td', { text: c.maxHailIn != null ? fmtHailSize(c.maxHailIn, settings.units) : '—' }));
+    tr.appendChild(el('td', { text: `${a.scores.wind}` }));
+    tr.appendChild(el('td', { text: `${a.scores.lightning}` }));
+    tbody.appendChild(tr);
+  }
+  table.appendChild(tbody);
+  wrap.appendChild(table);
+  return wrap;
+}
+
+/** Structured JSON of every visible storm — roadmap #75, for import into a
+ * spreadsheet or external analysis tool. */
+function exportStormsJson(analyses) {
+  const rows = analyses.map((a) => ({
+    id: a.cell.id,
+    type: a.type.label,
+    lat: a.cell.lat,
+    lon: a.cell.lon,
+    validTime: a.cell.valid ? a.cell.valid.toISOString() : null,
+    severeScore: a.severeScore,
+    tornadoPct: a.tornado.score,
+    hailIn: a.cell.maxHailIn ?? null,
+    windScore: a.scores.wind,
+    lightningScore: a.scores.lightning,
+    maxDbz: a.cell.maxDbz,
+    topKft: a.cell.topKft,
+    vil: a.cell.vil,
+    moveDirDeg: a.cell.moveDirDeg ?? null,
+    moveSpeedKts: a.cell.moveSpeedKts ?? null,
+    distanceKm: a.userRel ? a.userRel.distKm : null,
+  }));
+  const payload = { exportedAt: new Date().toISOString(), units: 'metric (raw values; km/kt/inches as noted)', storms: rows };
+  downloadFile(JSON.stringify(payload, null, 2), `stormlens-storms-${Date.now()}.json`, 'application/json');
+  showToast(`Exported ${rows.length} storm${rows.length === 1 ? '' : 's'} as JSON.`);
+}
+
 export function renderStormList(analyses, { onSelect, hiddenCount = 0 }) {
   const host = document.getElementById('storm-list');
   host.textContent = '';
@@ -37,6 +93,28 @@ export function renderStormList(analyses, { onSelect, hiddenCount = 0 }) {
     class: 'muted', style: 'margin: 0 2px 10px; font-size: 11.5px',
     text: 'The number on each storm here — and on each circle on the map — is its AI Severe Score (0–100: how dangerous the storm looks right now). Tap a storm to zoom the map to it and see full details.',
   }));
+
+  host.appendChild(el('div', { class: 'view-toggle', style: 'display:flex; gap:6px; margin: 0 2px 10px' }, [
+    el('button', {
+      class: settings.stormListView === 'table' ? 'product-btn' : 'product-btn active',
+      text: 'Cards',
+      onclick: () => { setSetting('stormListView', 'cards'); renderStormList(analyses, { onSelect, hiddenCount }); },
+    }),
+    el('button', {
+      class: settings.stormListView === 'table' ? 'product-btn active' : 'product-btn',
+      text: 'Table',
+      onclick: () => { setSetting('stormListView', 'table'); renderStormList(analyses, { onSelect, hiddenCount }); },
+    }),
+    analyses.length ? el('button', {
+      class: 'product-btn', text: '⬇ Export JSON', style: 'margin-left:auto',
+      onclick: () => exportStormsJson(analyses),
+    }) : null,
+  ]));
+
+  if (settings.stormListView === 'table' && analyses.length) {
+    host.appendChild(renderHazardMatrix(analyses, onSelect));
+    return;
+  }
 
   if (settings.bookmarkedStormIds.length) {
     const pinnedCard = el('div', { class: 'card' });

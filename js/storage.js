@@ -18,6 +18,7 @@ export const DEFAULT_SETTINGS = {
   highContrast: false,          // brighter text/borders for bright-sunlight readability
   chaseMode: false,             // chaser HUD + screen wake lock
   followMe: false,              // auto-center the map on GPS updates
+  stormListView: 'cards',       // 'cards' | 'table' — Storms tab display
   voiceAlerts: false,           // speak dangerous alerts (works over CarPlay/BT audio)
   dataSaver: false,             // slower refresh for weak cell signal
   checklist: {},                // chase checklist state {item: true}
