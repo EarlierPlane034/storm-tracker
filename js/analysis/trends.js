@@ -53,6 +53,27 @@ export function getHistory(cellId) {
   return history.get(cellId) || [];
 }
 
+/** Attach this cycle's computed tornado/severe scores to the sample
+ * recordSample() already pushed a moment earlier this same cycle (scoring
+ * happens after recordSample so the scores don't exist yet at that call).
+ * Backs the tornado-chance sparkline, rising-fast alert, and forecast
+ * projection - none of which existed before, since torScore was never
+ * actually recorded despite being in this file's own documented shape. */
+export function recordTornadoScore(cellId, torScore, severeScore) {
+  const arr = history.get(cellId);
+  if (!arr || !arr.length) return;
+  arr[arr.length - 1].torScore = torScore;
+  arr[arr.length - 1].severeScore = severeScore;
+}
+
+/** Tornado-score samples only, oldest first - convenience for sparklines/
+ * forecasting so callers don't have to filter getHistory() themselves. */
+export function getTornadoScoreHistory(cellId) {
+  return getHistory(cellId)
+    .filter((s) => s.torScore != null)
+    .map((s) => ({ t: s.t, score: s.torScore }));
+}
+
 /** Drop cells not seen for 30+ minutes. */
 export function pruneStale(activeIds) {
   const cutoff = Date.now() - 30 * 60_000;

@@ -18,7 +18,7 @@ import { clamp, scaleTo, haversineKm, fmtSpeed, bearingDeg } from '../utils.js';
 import { settings } from '../storage.js';
 import {
   recordSample, getHistory, pruneStale, stormTrend,
-  rotationPersistence, isRapidlyIntensifying, trendOf, lifecycleStage,
+  rotationPersistence, isRapidlyIntensifying, trendOf, lifecycleStage, recordTornadoScore,
 } from './trends.js';
 import { analyzeTornadoPotential } from './tornadoIntelligence.js';
 import { detectMesocyclones, trackMesocyclones, cleanupStaleTracks } from '../radar/mesocycloneDetector.js';
@@ -51,7 +51,9 @@ export function analyzeStorms(cells, environment, alerts, reports, user) {
       hailIn: cell.maxHailIn, posh: cell.posh,
       lat: cell.lat, lon: cell.lon,
     });
-    return analyzeCell(cell, environment, alerts, reports, user, cells);
+    const analysis = analyzeCell(cell, environment, alerts, reports, user, cells);
+    recordTornadoScore(cell.id, analysis.tornado.score, analysis.severeScore);
+    return analysis;
   });
 
   results.sort((a, b) => b.severeScore - a.severeScore);

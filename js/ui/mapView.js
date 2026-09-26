@@ -63,6 +63,7 @@ export class MapView {
       counties: L.layerGroup(),
       radarSites: L.layerGroup(),
       rangeRings: L.layerGroup(),
+      tornadoCones: L.layerGroup(),
     };
     this.syncLayerVisibility();
 
@@ -489,6 +490,7 @@ export class MapView {
     const _renderStart = performance.now();
     this.groups.cells.clearLayers();
     this.groups.stormTracks.clearLayers();
+    this.groups.tornadoCones.clearLayers();
     this.cellMarkers = []; // kept for time-matched loop playback
     this._lastAnalyses = analyses;
     if (this._lastUser) this.renderRangeRings(this._lastUser.lat, this._lastUser.lon, analyses);
@@ -511,7 +513,10 @@ export class MapView {
     for (const group of clusters) {
       if (group.length === 1) {
         this._addCellMarker(group[0]);
-        if (showTracks) this._addStormTrack(group[0]);
+        if (showTracks) {
+          this._addStormTrack(group[0]);
+          this._addTornadoRiskCone(group[0]);
+        }
       } else {
         this._addClusterMarker(group);
       }
@@ -627,6 +632,33 @@ export class MapView {
       }
     });
     line.bindTooltip(`moving ${compassDir(c.moveDirDeg)} at ${fmtSpeed(c.moveSpeedKts, settings.units)}`);
+  }
+
+  /** Widening "cone of concern" along an Elevated+ tornado-chance storm's
+   * projected track — same idea as a hurricane cone: the width grows with
+   * time to reflect growing track uncertainty, NOT actual tornado width or
+   * damage path. Only drawn for storms worth this much map ink. */
+  _addTornadoRiskCone(a) {
+    const c = a.cell;
+    if (a.tornado.score < 41) return;
+    if (c.moveDirDeg == null || !(c.moveSpeedKts > 3)) return;
+    const color = a.tornado.score >= 81 ? '#e879f9' : a.tornado.score >= 61 ? '#ef4444' : '#fb923c';
+    const left = [], right = [];
+    for (const min of [0, 15, 30, 45, 60]) {
+      const distKm = (c.moveSpeedKts * 1.852 * min) / 60;
+      const center = min === 0 ? [c.lat, c.lon] : destinationPoint(c.lat, c.lon, c.moveDirDeg, distKm);
+      const halfWidthKm = 2 + (min / 60) * 10;
+      left.push(destinationPoint(center[0], center[1], (c.moveDirDeg - 90 + 360) % 360, halfWidthKm));
+      right.push(destinationPoint(center[0], center[1], (c.moveDirDeg + 90) % 360, halfWidthKm));
+    }
+    const poly = L.polygon([...left, ...right.reverse()], {
+      color, weight: 1, opacity: 0.55, fillColor: color, fillOpacity: 0.1,
+      dashArray: '3 5', interactive: false,
+    });
+    poly.bindTooltip(
+      `Tornado risk corridor — ${a.tornado.label} chance (${a.tornado.pct}). Widens over time to reflect track uncertainty, not tornado size.`,
+    );
+    this.groups.tornadoCones.addLayer(poly);
   }
 }
 

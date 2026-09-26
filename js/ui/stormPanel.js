@@ -5,12 +5,17 @@
 import { el, escapeHtml, fmtDistance, fmtSpeed, fmtHailSize, compassDir, fmtRelTime, severityColor, downloadFile, estimateRainRateMmH, fmtRainRate, haversineKm } from '../utils.js';
 import { settings, setSetting } from '../storage.js';
 import { CONFIG } from '../config.js';
-import { getHistory } from '../analysis/trends.js';
+import { getHistory, getTornadoScoreHistory } from '../analysis/trends.js';
+import { projectTornadoScore } from '../analysis/forecast.js';
+import { estimateEfPotential } from '../analysis/efEstimator.js';
+import { matchTornadicSignature } from '../analysis/signatureMatch.js';
+import { logStormOutcome, getFeedbackLog } from '../analysis/feedbackLog.js';
 import { stormSummary, tornadoStatement, changeExplanation, technicalReadout } from '../analysis/narrative.js';
 import { attachTrendInteraction, SERIES_COLORS } from './trendChart.js';
 import { getState } from '../api/sources.js';
 import { showToast } from './toasts.js';
-import { selectStormForComparison } from './stormComparison.js';
+import { selectStormForComparison, openStormComparison } from './stormComparison.js';
+import { openChatForStorm } from './chatAssistant.js';
 
 export const scoreClass = (s) =>
   s >= 81 ? 'score-extreme' : s >= 61 ? 'score-high' : s >= 41 ? 'score-elev' : s >= 21 ? 'score-low' : 'score-verylow';
@@ -18,6 +23,8 @@ export const scoreClass = (s) =>
 const riskClass = (s) => (s >= 61 ? 'on-high' : s >= 35 ? 'on-med' : s >= 15 ? 'on-low' : '');
 
 const LIFECYCLE_LABEL = { newborn: '🆕 Newborn', growing: '📈 Growing', mature: '⬤ Mature', weakening: '📉 Weakening' };
+
+const OUTCOME_LABEL = { tornado: '🌪 Tornado occurred', funnel: '🌀 Funnel cloud only', none: 'No tornado', unsure: 'Not sure' };
 
 function toggleBookmark(stormId) {
   const ids = settings.bookmarkedStormIds;
@@ -100,7 +107,20 @@ export function renderStormList(analyses, { onSelect, hiddenCount = 0 }) {
     text: 'The number on each storm here — and on each circle on the map — is its AI Severe Score (0–100: how dangerous the storm looks right now). Tap a storm to zoom the map to it and see full details.',
   }));
 
-  host.appendChild(el('div', { class: 'view-toggle', style: 'display:flex; gap:6px; margin: 0 2px 10px' }, [
+  // Tornado Watch: filter to Elevated+ tornado chance (matches ratingBand's
+  // own 41+ cutoff used everywhere else) and/or sort by tornado chance
+  // instead of overall severity - independent toggles since you might want
+  // "just the tornado threats" without changing sort, or vice versa.
+  const TORNADO_WATCH_MIN = 41;
+  let displayList = settings.tornadoWatchOnly
+    ? analyses.filter((a) => a.tornado.score >= TORNADO_WATCH_MIN)
+    : analyses;
+  if (settings.stormSortBy === 'tornado') {
+    displayList = [...displayList].sort((a, b) => b.tornado.score - a.tornado.score);
+  }
+  const watchFilteredOutCount = settings.tornadoWatchOnly ? analyses.length - displayList.length : 0;
+
+  host.appendChild(el('div', { class: 'view-toggle', style: 'display:flex; flex-wrap:wrap; gap:6px; margin: 0 2px 10px' }, [
     el('button', {
       class: settings.stormListView === 'table' ? 'product-btn' : 'product-btn active',
       text: 'Cards',
@@ -111,20 +131,48 @@ export function renderStormList(analyses, { onSelect, hiddenCount = 0 }) {
       text: 'Table',
       onclick: () => { setSetting('stormListView', 'table'); renderStormList(analyses, { onSelect, hiddenCount }); },
     }),
-    analyses.length ? el('button', {
+    el('button', {
+      class: settings.tornadoWatchOnly ? 'product-btn active' : 'product-btn',
+      text: '🌪 Tornado Watch',
+      title: 'Show only storms with Elevated+ tornado chance',
+      onclick: () => { setSetting('tornadoWatchOnly', !settings.tornadoWatchOnly); renderStormList(analyses, { onSelect, hiddenCount }); },
+    }),
+    el('button', {
+      class: settings.stormSortBy === 'tornado' ? 'product-btn active' : 'product-btn',
+      text: '↕ Sort: Tornado %',
+      title: 'Sort by tornado chance instead of overall severity',
+      onclick: () => {
+        setSetting('stormSortBy', settings.stormSortBy === 'tornado' ? 'severity' : 'tornado');
+        renderStormList(analyses, { onSelect, hiddenCount });
+      },
+    }),
+    displayList.length ? el('button', {
       class: 'product-btn', text: '⬇ Export JSON', style: 'margin-left:auto',
-      onclick: () => exportStormsJson(analyses),
+      onclick: () => exportStormsJson(displayList),
     }) : null,
   ]));
 
-  if (settings.stormListView === 'table' && analyses.length) {
-    host.appendChild(renderHazardMatrix(analyses, onSelect));
+  if (settings.stormListView === 'table' && displayList.length) {
+    host.appendChild(renderHazardMatrix(displayList, onSelect));
     return;
   }
 
   if (settings.bookmarkedStormIds.length) {
     const pinnedCard = el('div', { class: 'card' });
-    pinnedCard.appendChild(el('h3', { text: '📌 Pinned storms' }));
+    const pinnedHead = el('div', { style: 'display:flex;align-items:center;justify-content:space-between' }, [
+      el('h3', { text: '📌 Pinned storms' }),
+    ]);
+    const livePinned = settings.bookmarkedStormIds
+      .map((id) => analyses.find((a) => a.cell.id === id))
+      .filter(Boolean);
+    if (livePinned.length >= 2) {
+      pinnedHead.appendChild(el('button', {
+        class: 'product-btn', text: '⚖️ Compare pinned',
+        title: 'Side-by-side comparison of all your currently-detected pinned storms',
+        onclick: () => openStormComparison(livePinned.slice(0, 3)),
+      }));
+    }
+    pinnedCard.appendChild(pinnedHead);
     for (const id of settings.bookmarkedStormIds) {
       const live = analyses.find((a) => a.cell.id === id);
       const row = el('div', { class: 'setting-row', style: 'padding:6px 0' });
@@ -149,8 +197,12 @@ export function renderStormList(analyses, { onSelect, hiddenCount = 0 }) {
     }
     return;
   }
+  if (!displayList.length) {
+    host.appendChild(el('div', { class: 'card muted', text: `No storms currently have an Elevated+ tornado chance. ${watchFilteredOutCount} storm${watchFilteredOutCount === 1 ? '' : 's'} hidden by Tornado Watch — turn it off above to see everything.` }));
+    return;
+  }
 
-  const shown = analyses.slice(0, 60);
+  const shown = displayList.slice(0, 60);
   for (const a of shown) {
     const c = a.cell;
     const card = el('div', { class: 'card storm-card' });
@@ -220,6 +272,12 @@ export function renderStormList(analyses, { onSelect, hiddenCount = 0 }) {
     host.appendChild(card);
   }
 
+  if (watchFilteredOutCount > 0) {
+    host.appendChild(el('div', {
+      class: 'muted', style: 'text-align:center; padding: 8px; font-size: 11.5px',
+      text: `${watchFilteredOutCount} more storm${watchFilteredOutCount === 1 ? '' : 's'} hidden by Tornado Watch (below Elevated tornado chance).`,
+    }));
+  }
   if (hiddenCount > 0) {
     host.appendChild(el('div', {
       class: 'muted', style: 'text-align:center; padding: 8px; font-size: 11.5px',
@@ -278,6 +336,7 @@ export function openStormSheet(a) {
       }),
     ]),
     el('div', { style: 'display:flex;align-items:center;gap:8px' }, [
+      el('button', { class: 'icon-btn', text: '🤖', 'aria-label': 'Ask AI about this storm', title: 'Ask AI: can this storm produce a tornado?', onclick: () => openChatForStorm(a) }),
       el('button', { class: 'icon-btn', text: '📤', 'aria-label': 'Share storm', onclick: () => shareStorm(a) }),
       el('button', { class: 'icon-btn', text: '🖼️', 'aria-label': 'Share scorecard image', onclick: () => shareScorecard(a) }),
       el('span', { class: `score-pill ${scoreClass(a.severeScore)}`, text: `${a.severeScore}` }),
@@ -305,6 +364,42 @@ export function openStormSheet(a) {
 
   // Tornado meter.
   body.appendChild(buildTornadoMeter(a));
+
+  // Tornadic-supercell signature checklist — the markers behind the score.
+  const sig = matchTornadicSignature(c, env, a.hookEcho);
+  if (sig.metCount > 0) {
+    body.appendChild(el('h4', { class: 'trend-title', style: 'margin-top:10px', text: `Tornadic signature markers — ${sig.metCount}/${sig.total} present` }));
+    const sigList = el('div', { class: 'card', style: 'padding:8px 12px' });
+    for (const m of sig.markers) {
+      sigList.appendChild(el('div', {
+        class: 'setting-row', style: 'padding:3px 0',
+        html: `<span style="color:${m.met ? 'var(--ok)' : 'var(--text-dim)'}">${m.met ? '✅' : '▫️'} ${escapeHtml(m.label)}</span>`,
+      }));
+    }
+    body.appendChild(sigList);
+  }
+
+  // Post-storm outcome feedback — what actually happened, for reviewing the
+  // AI's calls afterward. No network verification exists, so this is
+  // entered by hand.
+  const priorFeedback = getFeedbackLog().find((f) => f.stormId === c.id);
+  const feedbackCard = el('div', { class: 'card', style: 'margin-top:10px' });
+  feedbackCard.appendChild(el('h4', { class: 'trend-title', style: 'margin:0 0 6px', text: 'What actually happened?' }));
+  if (priorFeedback) {
+    feedbackCard.appendChild(el('div', {
+      class: 'muted', style: 'font-size:11.5px',
+      text: `Logged: ${OUTCOME_LABEL[priorFeedback.outcome] || priorFeedback.outcome} (at AI score ${priorFeedback.aiTornadoScore}/100). Tap below to change it.`,
+    }));
+  }
+  const outcomeRow = el('div', { style: 'display:flex;flex-wrap:wrap;gap:6px;margin-top:6px' });
+  for (const [key, label] of Object.entries(OUTCOME_LABEL)) {
+    outcomeRow.appendChild(el('button', {
+      class: 'product-btn', text: label,
+      onclick: () => { logStormOutcome(a, key); showToast(`Logged: ${label} for ${c.id}.`); openStormSheet(a); },
+    }));
+  }
+  feedbackCard.appendChild(outcomeRow);
+  body.appendChild(feedbackCard);
 
   // Score breakdown: which hazards are driving the headline number.
   body.appendChild(el('h4', { class: 'trend-title', style: 'margin-top:10px', text: `Why ${a.severeScore}/100 — score breakdown` }));
@@ -430,6 +525,16 @@ export function openStormSheet(a) {
   }));
 }
 
+/** Tiny inline sparkline (SVG via innerHTML — browsers switch to foreign-
+ * content parsing on <svg>, so this renders correctly without needing
+ * createElementNS). */
+function sparklineSvg(scores, { width = 220, height = 32, color = '#38bdf8' } = {}) {
+  if (scores.length < 2) return '';
+  const stepX = width / (scores.length - 1);
+  const points = scores.map((s, i) => `${(i * stepX).toFixed(1)},${(height - Math.max(0, Math.min(100, s)) / 100 * height).toFixed(1)}`).join(' ');
+  return `<svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" style="display:block;overflow:visible"><polyline points="${points}" fill="none" stroke="${color}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/></svg>`;
+}
+
 export function buildTornadoMeter(a) {
   const t = a.tornado;
   const wrap = el('div', { class: 'tor-meter' });
@@ -441,6 +546,30 @@ export function buildTornadoMeter(a) {
   const track = el('div', { class: 'tor-meter-track' });
   track.appendChild(el('div', { class: 'tor-meter-fill', style: `width:${t.score}%;background:${fillColor}` }));
   wrap.appendChild(track);
+
+  const torHist = getTornadoScoreHistory(a.cell.id);
+  if (torHist.length >= 2) {
+    const spark = el('div', { style: 'margin-top:8px;display:flex;align-items:center;gap:8px' });
+    spark.appendChild(el('div', { html: sparklineSvg(torHist.map((s) => s.score), { color: fillColor }) }));
+    spark.appendChild(el('span', { class: 'muted', style: 'font-size:10.5px', text: `last ${torHist.length} scans` }));
+    wrap.appendChild(spark);
+  }
+  const proj = projectTornadoScore(torHist, 15);
+  if (proj) {
+    wrap.appendChild(el('div', {
+      class: 'muted', style: 'margin-top:4px;font-size:11px',
+      text: `${proj.rising ? '📈' : '📉'} If this trend holds: ~${proj.projected}/100 in ~${proj.aheadMin} min (from ${proj.current} now). Not a forecast — just the recent trend extrapolated.`,
+    }));
+  }
+
+  const ef = estimateEfPotential(a.cell, t.score);
+  if (ef) {
+    wrap.appendChild(el('div', {
+      class: 'muted', style: 'margin-top:4px;font-size:11px',
+      text: `💥 If a tornado occurs: rotation strength suggests ${ef.label} potential. Only an official NWS damage survey can ever assign a real EF rating.`,
+    }));
+  }
+
   wrap.appendChild(el('p', { class: 'ai-block', style: 'margin-top:6px', text: tornadoStatement(a) }));
   return wrap;
 }

@@ -17,6 +17,8 @@ import { renderAiPanel } from './ui/aiPanel.js';
 import { renderSettings } from './ui/settingsPanel.js';
 import { renderLayers } from './ui/layersPanel.js';
 import { showToast } from './ui/toasts.js';
+import { computeClimatology } from './analysis/climatology.js';
+import { recordDigestSample } from './analysis/digest.js';
 import * as geo from './location.js';
 import { evaluateAlerts, evaluateStorms, requestNotificationPermission } from './alerts/alertEngine.js';
 import { connectPush, disconnectPush, syncPush } from './alerts/pushClient.js';
@@ -355,6 +357,7 @@ function selectStorm(a) {
 function visibleAnalyses(user) {
   return analyses.filter((a) =>
     a.severeScore >= (settings.minCellScore || 0) &&
+    (!settings.onlyRotating || a.cell.tvs || a.cell.meso > 0) &&
     (!settings.onlyNearby || !user ||
       (a.userRel && a.userRel.distKm <= settings.monitorRadiusKm)));
 }
@@ -372,6 +375,7 @@ const reanalyze = debounce(() => {
   analyses.forEach((a) => {
     recordStormMetrics(a.cell.id, a.cell, a);
   });
+  recordDigestSample(analyses);
 
   // Map + always-on chrome first; list panels only if actually visible.
   mapView.renderCells(visibleAnalyses(user));
@@ -667,6 +671,7 @@ async function loadTornadoHistory() {
   if (torHistoryLoaded) {
     mapView.clearTornadoHistory();
     torHistoryLoaded = false;
+    computeClimatology(null);
     showToast('Tornado history layer removed.');
     return;
   }
@@ -707,7 +712,11 @@ async function loadTornadoHistory() {
   }
   mapView.renderTornadoHistory(tracks);
   torHistoryLoaded = true;
-  showToast(`${tracks.length} historical tornadoes near this view (since 1950). Colors = intensity; tap a track for details. Load again to remove.`, { ttlMs: 12_000 });
+  const clim = computeClimatology(tracks);
+  const climLine = clim
+    ? ` Peak month here: ${clim.peakMonth}. Strongest on record: EF${clim.strongestEF}.`
+    : '';
+  showToast(`${tracks.length} historical tornadoes near this view (since 1950).${climLine} Colors = intensity; tap a track for details. Load again to remove.`, { ttlMs: 14_000 });
 }
 
 /** Dim red night theme (Settings → Radar → Night mode). */
@@ -717,6 +726,7 @@ function applyTheme() {
   document.body.classList.toggle('large-text', !!settings.largeText);
   document.body.classList.toggle('high-contrast', !!settings.highContrast);
   document.body.classList.toggle('serif-font', settings.fontFamily === 'serif');
+  document.body.classList.toggle('simple-mode', !!settings.simpleDisplayMode);
 }
 
 /* ---------------- Chase mode: HUD + screen wake lock ---------------- */
@@ -802,6 +812,15 @@ function updateChaseHud(user) {
     return;
   }
   const target = analyses.find((a) => a.userRel && a.userRel.distKm <= settings.monitorRadiusKm);
+  // Nearest actively tornado-warned storm, regardless of which storm is the
+  // HUD's main target - a warned storm elsewhere in range shouldn't be
+  // silent just because a different, unwarned storm is closer/scored higher.
+  const tornadoWarned = analyses
+    .filter((a) => a.userRel && a.userRel.distKm <= settings.monitorRadiusKm && a.warnings.some((w) => w.kind === 'tor-warning'))
+    .sort((a, b) => a.userRel.distKm - b.userRel.distKm)[0];
+  const tornadoWarnedLine = tornadoWarned
+    ? `<div class="hud-warn" style="background:rgba(239,68,68,0.18);border-color:rgba(239,68,68,0.5);color:var(--danger)">🌪 Tornado-warned: ${escapeHud(tornadoWarned.cell.id)} — ${escapeHud(fmtDistance(tornadoWarned.userRel.distKm, settings.units))}${tornadoWarned.userRel.etaMin != null ? `, ETA ~${tornadoWarned.userRel.etaMin} min` : ''}</div>`
+    : '';
   const mySpeed = user.speedMps != null && user.speedMps >= 0
     ? fmtSpeed(user.speedMps * 1.94384, settings.units) : '—';
   const daylight = daylightText(user);
@@ -824,7 +843,7 @@ function updateChaseHud(user) {
 
   const noteBtn = '<button class="product-btn hud-note-btn" id="hud-note-btn">📝</button>';
   if (!target) {
-    hud.innerHTML = `<div class="hud-title">CHASE MODE ${noteBtn}</div><div class="muted">No target storms in radius · your speed ${escapeHud(mySpeed)} · ${daylight}</div>${vitalsLine}`;
+    hud.innerHTML = `<div class="hud-title">CHASE MODE ${noteBtn}</div><div class="muted">No target storms in radius · your speed ${escapeHud(mySpeed)} · ${daylight}</div>${tornadoWarnedLine}${vitalsLine}`;
   } else {
     const brg = bearingDeg(user.lat, user.lon, target.cell.lat, target.cell.lon);
     const eta = target.userRel.etaMin != null ? `~${target.userRel.etaMin} min to you` : 'not tracking to you';
@@ -851,6 +870,7 @@ function updateChaseHud(user) {
       ${overshoot ? `<div class="hud-warn">⚠️ ${escapeHud(overshoot)}</div>` : ''}
       ${approach ? `<div class="hud-note" style="font-weight:600;color:${approach.tone === 'danger' ? 'var(--danger)' : approach.tone === 'warn' ? 'var(--warn)' : 'var(--ok)'}">${escapeHud(approach.label)}</div>` : ''}
       <div class="hud-note">${escapeHud(noteText)} Unofficial guidance — your safety decisions are your own.</div>
+      ${tornadoWarned && tornadoWarned !== target ? tornadoWarnedLine : ''}
       ${vitalsLine}`;
     hud.onclick = () => openStormSheet(target);
   }
@@ -1299,7 +1319,7 @@ function wireChrome() {
         showToast('Chase-day replay drawn — your route in blue, 📝 marks your notes. Load again from Settings to redraw.');
         return;
       }
-      if (path === 'nightMode' || path === 'largeText' || path === 'highContrast' || path === 'fontFamily') applyTheme();
+      if (path === 'nightMode' || path === 'largeText' || path === 'highContrast' || path === 'fontFamily' || path === 'simpleDisplayMode') applyTheme();
       if (path === 'hiddenTabs') { applyTabVisibility(); rerenderSettings(); }
       if (path === 'hiddenWeek3Tabs') week3Panel?.applyTabVisibility();
       if (path === 'hiddenAnalysisTabs') advancedPanel?.applyTabVisibility();
@@ -1320,7 +1340,7 @@ function wireChrome() {
       if (path === 'refreshIntervalSec') sources.applyRefreshInterval();
       if (path === 'refreshIntervalSec' || path === 'animFps') radar.rebuild();
       if (['units', 'monitorRadiusKm', 'aiSensitivity', 'showTechnical',
-        'minCellScore', 'onlyNearby'].includes(path)) reanalyze();
+        'minCellScore', 'onlyNearby', 'onlyRotating'].includes(path)) reanalyze();
       // Alert prefs / radius / favorites also live on the push worker.
       if (path.startsWith('alertsEnabled') || path === 'monitorRadiusKm' || path === 'favorites') syncPush();
     },
@@ -1332,6 +1352,13 @@ function wireChrome() {
     applySettingsSearch(document.getElementById('settings-search')?.value || '');
   };
   document.getElementById('settings-search')?.addEventListener('input', (e) => applySettingsSearch(e.target.value));
+
+  // Open on the user's chosen default tab (Settings → Visible tabs & panels)
+  // instead of always the map — falls back to map if that tab is hidden.
+  const wantDefault = settings.defaultTab;
+  if (wantDefault && wantDefault !== 'map' && !(settings.hiddenTabs || []).includes(wantDefault)) {
+    showPanel(wantDefault);
+  }
 }
 
 /* ---------------- Service worker ---------------- */

@@ -12,19 +12,40 @@ import { getState } from '../api/sources.js';
 import { getLocation } from '../location.js';
 import { stormSummary, tornadoStatement } from '../analysis/narrative.js';
 import { pointInGeometry } from '../analysis/stormAnalyzer.js';
+import { analyzeRadarImage } from '../ai/visionAnalysis.js';
 
 let transcript = []; // {who: 'you'|'ai', text}
 let getAnalyses = () => [];
 let onSelectStorm = () => {};
+// Set when the chat is opened from a specific storm's detail sheet ("Ask AI
+// about this storm") - narrows tornado/hazard/safety questions to that one
+// storm instead of scanning every tracked cell. Cleared when the chat sheet
+// is closed so a later "which storm..." question goes back to scanning all.
+let focusedStorm = null;
 
 export function initChat({ analysesProvider, onSelect }) {
   getAnalyses = analysesProvider;
   onSelectStorm = onSelect;
   const sheet = document.getElementById('chat-sheet');
-  sheet.querySelector('.sheet-grab').addEventListener('click', () => { sheet.hidden = true; });
+  sheet.querySelector('.sheet-grab').addEventListener('click', () => { sheet.hidden = true; focusedStorm = null; });
   document.getElementById('chat-send').addEventListener('click', send);
   document.getElementById('chat-input').addEventListener('keydown', (e) => {
     if (e.key === 'Enter') send();
+  });
+  document.getElementById('chat-image-btn').addEventListener('click', () => {
+    document.getElementById('chat-image-input').click();
+  });
+  document.getElementById('chat-image-input').addEventListener('change', async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = ''; // allow picking the same file again later
+    if (!file) return;
+    push('you', `📷 ${file.name}`);
+    push('ai', 'Analyzing that image…');
+    render();
+    const result = await analyzeRadarImage(file);
+    transcript.pop(); // remove the "Analyzing…" placeholder
+    push('ai', result.ok ? result.text : `⚠️ ${result.error}`);
+    render();
   });
   // Quick-question chips.
   const chips = [
@@ -47,6 +68,17 @@ export function openChat() {
   if (!transcript.length) {
     push('ai', 'Hi — I answer questions using the live radar analysis on this device. Ask me things like “which storm near me could produce a tornado?”, “when will the closest storm hit?”, “what about hail?”, or “what does this week look like?” Everything I say is an unofficial estimate — always follow NWS warnings.');
   }
+  render();
+}
+
+/** Opens the chat already scoped to one storm (from its detail sheet's
+ * "Ask AI about this storm" button) and asks the tornado question for it
+ * right away, so the answer doesn't require re-explaining which storm. */
+export function openChatForStorm(a) {
+  focusedStorm = a;
+  document.getElementById('chat-sheet').hidden = false;
+  push('you', `Can ${a.cell.id} produce a tornado?`);
+  push('ai', answer('tornado'));
   render();
 }
 
@@ -80,11 +112,17 @@ function answer(qRaw) {
   const q = qRaw.toLowerCase();
   const user = getLocation();
   const all = getAnalyses();
+  const focused = focusedStorm ? all.find((a) => a.cell.id === focusedStorm.cell.id) : null;
   const near = user
     ? all.filter((a) => a.userRel && a.userRel.distKm <= settings.monitorRadiusKm)
     : all;
-  const pool = near.length ? near : all;
-  const scope = user ? (near.length ? 'near you' : 'nationally (none in your radius)') : 'nationally (no GPS)';
+  const pool = focused ? [focused] : (near.length ? near : all);
+  const scope = focused
+    ? 'for this storm'
+    : (user ? (near.length ? 'near you' : 'nationally (none in your radius)') : 'nationally (no GPS)');
+  if (focusedStorm && !focused) {
+    return `${focusedStorm.cell.id} is no longer being detected on radar — it may have dissipated or moved out of range. Ask me about current storms instead.`;
+  }
 
   const has = (...words) => words.some((w) => q.includes(w));
 
@@ -92,7 +130,9 @@ function answer(qRaw) {
   if (has('tornado', 'rotation', 'spin', 'funnel')) {
     if (!pool.length) return noStorms(user);
     const top = [...pool].sort((a, b) => b.tornado.score - a.tornado.score)[0];
-    let out = `The storm with the highest tornado potential ${scope} is ${ident(top)} — tornado score ${top.tornado.score}/100, chance ${top.tornado.label} (${top.tornado.pct}). `;
+    let out = focused
+      ? `${ident(top)} — tornado score ${top.tornado.score}/100, chance ${top.tornado.label} (${top.tornado.pct}). `
+      : `The storm with the highest tornado potential ${scope} is ${ident(top)} — tornado score ${top.tornado.score}/100, chance ${top.tornado.label} (${top.tornado.pct}). `;
     out += tornadoStatement(top);
     return out + tapHint(top);
   }

@@ -87,20 +87,32 @@ function localize(s) {
 }
 
 /* ---- Haptic patterns (navigator.vibrate — Android only; iOS blocks it) ---- */
-function buzz(level) {
+function buzz(level, isExtreme) {
   if (!settings.hapticAlerts || !navigator.vibrate) return;
-  navigator.vibrate(level === 'danger' ? [400, 120, 400, 120, 400] : [200, 100, 200]);
+  navigator.vibrate(isExtreme ? [400, 100, 400, 100, 400, 100, 400]
+    : level === 'danger' ? [400, 120, 400, 120, 400] : [200, 100, 200]);
 }
 
 /* ---- Sound alerts: a distinct tone per hazard type, layered on top of
  * vibration/voice. Lazily constructed — AudioContext must be created near
  * a user gesture on some browsers, and most users never enable this. */
+/** True for the rare highest-danger cases — an official NWS Tornado
+ * Emergency, or the AI's own tornado chance reaching its top band ("Very
+ * High" per CONFIG.analysis.torBands, NOT the separate severity-score
+ * "Extreme" band — the two scales use different label sets) — which get a
+ * distinctly more urgent tone/vibration, not just a louder version of the
+ * ordinary tornado-warning alert. */
+function isExtremeEvent(title, body) {
+  return title.includes('EMERGENCY') || body.includes('Very High');
+}
+
 let audioAlerts = null;
-function chime(title, level) {
+function chime(title, body, level, isExtreme) {
   if (!settings.soundAlerts) return;
   try {
     audioAlerts ??= new AudioAlerts();
-    if (title.includes('Tornado') || title.includes('TORNADO')) audioAlerts.playTornadoSiren();
+    if (isExtreme) audioAlerts.playExtremeAlarm();
+    else if (title.includes('Tornado') || title.includes('TORNADO')) audioAlerts.playTornadoSiren();
     else if (level === 'danger') audioAlerts.playWarningTone();
     else audioAlerts.playNotification();
   } catch { /* AudioContext unavailable/blocked — sound is best-effort */ }
@@ -144,9 +156,10 @@ function deliver(title, body, level = 'warn') {
   // danger-level events (TVS, tornado chance rising, critical mergers)
   // still break through, matching "don't alert me unless tornado warning".
   const quiet = isQuietHours() && level !== 'danger';
+  const isExtreme = isExtremeEvent(title, body);
   if (!quiet) {
-    buzz(level);
-    chime(title, level);
+    buzz(level, isExtreme);
+    chime(title, body, level, isExtreme);
     if (level === 'danger') speak(`${title}. ${body}`);
   }
   showToast(`${title} — ${body}`, { level, ttlMs: 12_000 });

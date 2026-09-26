@@ -21,9 +21,13 @@ export const DEFAULT_SETTINGS = {
   fontFamily: 'sans',           // 'sans' | 'serif' — readability preference
   highContrast: false,          // brighter text/borders for bright-sunlight readability
   chaseMode: false,             // chaser HUD + screen wake lock
+  simpleDisplayMode: false,     // CarPlay-style: big text, minimal chrome, glance-friendly while mounted/driving
   tailgateDistanceKm: 3,        // chase HUD warns if you're closer than this to the target storm
   followMe: false,              // auto-center the map on GPS updates
+  defaultTab: 'map',             // which tab opens on launch — 'map' | 'storms' | 'alerts' | 'reports' | 'analysis' | 'week3' | 'ai' | 'features'
   stormListView: 'cards',       // 'cards' | 'table' — Storms tab display
+  tornadoWatchOnly: false,      // Storms tab: only show Elevated+ tornado chance
+  stormSortBy: 'severity',      // 'severity' | 'tornado' — Storms tab sort order
   voiceAlerts: false,           // speak dangerous alerts (works over CarPlay/BT audio)
   dataSaver: false,             // slower refresh for weak cell signal
   checklist: {},                // chase checklist state {item: true}
@@ -34,6 +38,7 @@ export const DEFAULT_SETTINGS = {
   monitorRadiusKm: CONFIG.analysis.monitorRadiusKm,
   minCellScore: 0,              // hide storms scoring below this (map + lists)
   onlyNearby: false,            // only show storms within monitorRadiusKm
+  onlyRotating: false,          // only show storms with a detected mesocyclone or TVS
   aiSensitivity: 'balanced',    // 'conservative' | 'balanced' | 'aggressive'
   notifySensitivity: 'high-only', // 'all' | 'high-only' | 'off'
   lightningAlertKm: 30,
@@ -74,11 +79,13 @@ export const DEFAULT_SETTINGS = {
     radarSites: false,
     rangeRings: false,
     mesocyclones: true,
+    tornadoCones: true,
   },
   favorites: [],                // [{name, lat, lon}]
   bookmarkedStormIds: [],        // storm cell IDs pinned during this session/day
   interceptGuidance: true,       // map pin + route to the nearest dangerous storm's projected path
   pushServerUrl: '',            // user's own Cloudflare push worker URL
+  visionApiUrl: '',             // user's own vision-capable API/Worker URL for radar screenshot analysis
   pushEnabled: false,           // background push registered
   showTechnical: false,         // AI: include technical explanation
   firstRunDone: false,

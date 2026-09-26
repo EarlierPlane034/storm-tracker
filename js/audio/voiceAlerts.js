@@ -179,6 +179,37 @@ export class AudioAlerts {
   }
 
   /**
+   * Distinct, more urgent alarm for the rare highest-danger events (an NWS
+   * Tornado Emergency, or the AI's tornado chance reaching Extreme) — a
+   * faster, higher-pitched pulse pattern than the ordinary tornado siren so
+   * it's audibly distinguishable, not just a louder version of the same
+   * tone, from an ordinary Tornado Warning.
+   */
+  playExtremeAlarm() {
+    if (!this.enabled) return;
+
+    const ctx = this.audioContext;
+    for (let i = 0; i < 5; i++) {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+
+      const start = ctx.currentTime + i * 0.28;
+      osc.frequency.setValueAtTime(500, start);
+      osc.frequency.exponentialRampToValueAtTime(1200, start + 0.12);
+      osc.frequency.exponentialRampToValueAtTime(500, start + 0.24);
+
+      gain.gain.setValueAtTime(0.45, start);
+      gain.gain.exponentialRampToValueAtTime(0, start + 0.24);
+
+      osc.start(start);
+      osc.stop(start + 0.24);
+    }
+  }
+
+  /**
    * Play notification ping
    */
   playNotification() {

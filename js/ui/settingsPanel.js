@@ -205,6 +205,9 @@ export function renderSettings({ onChanged, onRequestNotifications, onRouteCheck
     ]));
   }
 
+  selectRow('Default tab on launch', 'Which screen opens when you start the app — falls back to Map if that tab is currently hidden above', 'defaultTab',
+    [['map', 'Map'], ...HIDEABLE_TABS]);
+
   if (!(settings.hiddenTabs || []).includes('week3')) {
     tabVisibilitySection.appendChild(el('div', { class: 'muted', style: 'font-size:11px;margin:10px 4px 4px', text: 'Week 3 sub-tabs' }));
     const HIDEABLE_WEEK3 = [
@@ -287,6 +290,7 @@ export function renderSettings({ onChanged, onRequestNotifications, onRouteCheck
   selectRow('Tailgate distance', 'Chase HUD warns if you get closer than this to your target storm', 'tailgateDistanceKm',
     [[1, '1 km (~0.6 mi)'], [2, '2 km (~1.2 mi)'], [3, '3 km (~1.9 mi) — default'], [5, '5 km (~3.1 mi)'], [8, '8 km (~5 mi)']]);
   toggleRow('Follow me', 'Auto-center the map on your position as you drive', 'followMe');
+  toggleRow('🚗 Simple display mode', 'CarPlay-style: bigger text and tap targets, secondary detail hidden — built for a quick glance while mounted and driving, not reading', 'simpleDisplayMode');
   toggleRow('Data saver', 'Slower refresh (5 min) for weak cell signal in the field', 'dataSaver');
   target.appendChild(el('div', { class: 'setting-row' }, [
     el('label', { html: 'Share my location<span class="hint">Sends your exact GPS coordinates + a timestamp — for texting a contact in an emergency</span>' }),
@@ -344,6 +348,7 @@ export function renderSettings({ onChanged, onRequestNotifications, onRouteCheck
   selectRow('Storm display filter', 'Hide weaker storms from the map & lists (alerts still watch everything)', 'minCellScore',
     [[0, 'Show all storms'], [20, 'Score 20+ only'], [40, 'Score 40+ (elevated)'], [60, 'Score 60+ (high)']]);
   toggleRow('Only storms near me', 'Show only storms inside your monitoring radius (needs location)', 'onlyNearby');
+  toggleRow('Only rotating storms', 'Show only storms with a detected mesocyclone or TVS — everything else hidden from the map & lists', 'onlyRotating');
   toggleRow('Technical readout', 'Show raw parameters in storm details', 'showTechnical');
 
   section('Notifications');
@@ -483,6 +488,20 @@ export function renderSettings({ onChanged, onRequestNotifications, onRouteCheck
       }),
     ]));
   }
+
+  section('Radar image AI analysis');
+  target.appendChild(el('div', {
+    class: 'muted', style: 'font-size:11px;margin:0 4px 8px',
+    text: 'Optional: point this at your own vision-capable API or Cloudflare Worker to get an AI description of a radar screenshot (from the 📷 button in Ask AI). No image ever leaves your device unless this is set — same bring-your-own-endpoint idea as background push above.',
+  }));
+  const visionInput = el('input', {
+    type: 'text',
+    placeholder: 'https://your-vision-worker.workers.dev',
+    value: settings.visionApiUrl || '',
+    style: 'flex:1;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:8px;font-size:13px',
+    onchange: (e) => { setSetting('visionApiUrl', e.target.value.trim()); onChanged('visionApiUrl'); },
+  });
+  target.appendChild(el('div', { class: 'setting-row' }, [visionInput]));
 
   section('About');
   target.appendChild(el('div', { class: 'setting-row' }, [

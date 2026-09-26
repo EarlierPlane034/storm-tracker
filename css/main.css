@@ -60,6 +60,25 @@ body.large-text .stat .v, body.large-text .score-pill, body.large-text .tab {
   font-size: 15px;
 }
 
+/* Simple display mode (Settings → Storm Chasing → 🚗 Simple display mode) —
+   CarPlay-style: bigger tap targets and headline numbers, secondary
+   explainer text collapsed, for a quick glance while mounted and driving
+   rather than being read closely. */
+body.simple-mode .tab { font-size: 13px; padding: 14px 2px; }
+body.simple-mode .score-pill { font-size: 20px; padding: 5px 12px; }
+body.simple-mode .storm-id { font-size: 17px; }
+body.simple-mode .storm-meta { font-size: 13.5px; }
+body.simple-mode #storm-list > .muted:first-child,
+body.simple-mode .storm-card .muted {
+  display: none; /* the "what the numbers mean" explainer and per-card "why" line — useful once, not every glance */
+}
+body.simple-mode #chase-hud { font-size: 15px; padding: 14px; }
+body.simple-mode .hud-title { font-size: 17px; }
+body.simple-mode .product-btn, body.simple-mode .card-icon-btn, body.simple-mode .icon-btn {
+  min-height: 40px;
+  font-size: 15px;
+}
+
 * { margin: 0; padding: 0; box-sizing: border-box; }
 
 html, body {
@@ -573,6 +592,17 @@ body.colorblind .ffw { color: #56B4E9; }
 .alert-card.tor { border-left-color: var(--tor); }
 .alert-card.svr { border-left-color: var(--svr); }
 .alert-card.ffw { border-left-color: var(--ffw); }
+/* Tornado Emergency — NWS's rare "this is a particularly dangerous
+   situation" wording - visually distinct from an ordinary Tornado Warning
+   rather than just different label text, since that's the one alert level
+   where a glance should read differently, not just the words on it. */
+.alert-card.emergency {
+  border-left-width: 6px;
+  border-left-color: var(--extreme);
+  background: rgba(232, 121, 249, 0.08);
+  box-shadow: 0 0 0 1px rgba(232, 121, 249, 0.35) inset;
+}
+.alert-card.emergency .alert-title { color: var(--extreme); font-weight: 800; }
 .alert-title { font-weight: 700; font-size: 13.5px; }
 .alert-area { font-size: 11.5px; color: var(--text-dim); margin: 4px 0; }
 .alert-times { font-family: var(--mono); font-size: 10.5px; color: var(--text-dim); }

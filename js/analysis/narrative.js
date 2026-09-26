@@ -152,7 +152,12 @@ function fmt(v, unit = '') {
   return unit ? `${n} ${unit}` : String(n);
 }
 
-/** Headline for the top ticker: most dangerous relevant storm. */
+/** Headline for the top ticker: most dangerous relevant storm - or, when a
+ * different storm has a genuinely high (61+, "High"/"Very High" band)
+ * tornado chance, that storm instead. A storm with strong rotation but
+ * merely middling wind/hail can rank well below the top-severity storm on
+ * severeScore alone, so without this a real tornado threat could go
+ * unmentioned in the one headline most people glance at. */
 export function tickerHeadline(analyses, user) {
   if (!analyses.length) {
     return 'No storm cells detected in the monitored area. StormLens is watching radar, alerts and the model environment.';
@@ -160,11 +165,16 @@ export function tickerHeadline(analyses, user) {
   const relevant = user
     ? analyses.filter((a) => a.userRel && a.userRel.distKm <= settings.monitorRadiusKm)
     : analyses;
-  const top = (relevant.length ? relevant : analyses)[0];
+  const pool = relevant.length ? relevant : analyses;
+  const topSeverity = pool[0];
+  const topTornado = [...pool].sort((a, b) => b.tornado.score - a.tornado.score)[0];
+  const top = topTornado.tornado.score >= 61 && topTornado !== topSeverity ? topTornado : topSeverity;
   const c = top.cell;
-  const bits = [`${top.type.label} (${top.threatRating.label} threat, ${top.severeScore}/100)`];
+  const bits = top === topTornado
+    ? [`🌪 ${top.type.label} — tornado chance ${top.tornado.label.toLowerCase()} (${top.tornado.pct})`]
+    : [`${top.type.label} (${top.threatRating.label} threat, ${top.severeScore}/100)`];
   if (top.userRel) bits.push(`${fmtDistance(top.userRel.distKm, settings.units)} away`);
-  if (top.tornado.score > 20) bits.push(`tornado chance ${top.tornado.label.toLowerCase()} (${top.tornado.pct})`);
+  if (top !== topTornado && top.tornado.score > 20) bits.push(`tornado chance ${top.tornado.label.toLowerCase()} (${top.tornado.pct})`);
   if (top.trend.label !== 'steady') bits.push(top.trend.label);
   return bits.join(' • ');
 }

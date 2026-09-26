@@ -1,6 +1,7 @@
 /** Map layers panel: overlay toggles. */
 import { el } from '../utils.js';
 import { settings, setSetting } from '../storage.js';
+import { getClimatology } from '../analysis/climatology.js';
 
 const LAYERS = [
   ['warnings', 'Warnings (polygons)', 'Tornado / severe / flash flood warning boxes'],
@@ -13,6 +14,7 @@ const LAYERS = [
   ['radarSites', 'Radar sites', 'WSR-88D locations; active site highlighted'],
   ['rangeRings', 'Range rings', '25/50/100 mi rings centered on your location'],
   ['mesocyclones', 'Mesocyclones', 'Rotation centers and movement trails detected on radar'],
+  ['tornadoCones', 'Tornado risk corridors', 'Widening "cone of concern" along the track of any storm with Elevated+ tornado chance'],
 ];
 
 export function renderLayers({ onChanged, onGlance, onTornadoHistory }) {
@@ -30,6 +32,13 @@ export function renderLayers({ onChanged, onGlance, onTornadoHistory }) {
       el('label', { html: '🌪 Tornado history<span class="hint">Every recorded tornado since 1950 near the map view (one-time ~10 MB download from SPC)</span>' }),
       el('button', { class: 'product-btn', text: 'Load', onclick: onTornadoHistory }),
     ]));
+    const clim = getClimatology();
+    if (clim) {
+      host.appendChild(el('div', {
+        class: 'card muted', style: 'margin:0 0 10px; font-size:11.5px',
+        text: `📊 Local climatology (from the loaded archive): ${clim.count} tornadoes recorded near this view since 1950 · peak month ${clim.peakMonth} · strongest EF${clim.strongestEF}${clim.totalFatalities ? ` · ${clim.totalFatalities} fatalities total` : ''}.`,
+      }));
+    }
   }
   // Overlay layers.
   for (const [key, label, hint] of LAYERS) {
