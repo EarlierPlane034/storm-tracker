@@ -193,7 +193,7 @@ function safetyAnswer(user, all) {
   if (inTor) return '🚨 A TORNADO WARNING includes your location RIGHT NOW. Go to a basement or small interior room on the lowest floor, away from windows, immediately. Do not wait to confirm visually. This one is official — act on it.';
   if (inSvr) return '⛈ A Severe Thunderstorm Warning includes your location — move indoors, away from windows, and expect damaging wind or hail. That part is official NWS guidance.';
   const near = all.filter((a) => a.userRel && a.userRel.distKm <= 80);
-  if (!near.length) return 'You are not inside any warning, and no tracked storms are within ~50 miles right now. Conditions can change fast — I\'ll keep watching and the alert engine will notify you.';
+  if (!near.length) return `You are not inside any warning, and no tracked storms are within ~${fmtDistance(80, settings.units)} right now. Conditions can change fast — I'll keep watching and the alert engine will notify you.`;
   const worst = near[0];
   return `You're not inside any official warning right now, but ${ident(worst)} is scoring ${worst.severeScore}/100${worst.userRel.etaMin != null ? ` and could reach your area in ~${worst.userRel.etaMin} min` : ''}. Keep alerts on and have a plan for shelter. ${disclaimer()}`;
 }

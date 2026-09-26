@@ -84,7 +84,7 @@ async function main() {
   // Initialize advanced analysis panel (Week 2)
   const analysisPanelContainer = document.getElementById('analysis-panel');
   if (analysisPanelContainer) {
-    advancedPanel = new AdvancedAnalysisPanel('analysis-panel', mapView.map, mapView);
+    advancedPanel = new AdvancedAnalysisPanel('analysis-panel', mapView.map, mapView, () => analyses);
   }
 
   // Initialize Week 3 features panel

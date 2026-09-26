@@ -170,69 +170,6 @@ export class HailScatterPlot {
 }
 
 /**
- * Tornado Potential Risk Map (Grid overlay)
- */
-export class TornadoRiskMap {
-  constructor(map) {
-    this.map = map;
-    this.layer = null;
-  }
-
-  /**
-   * Render risk grid on map
-   */
-  render(storms) {
-    if (this.layer) this.map.removeLayer(this.layer);
-    // Canvas image layers not available - skip to prevent black artifacts
-    this.layer = null;
-  }
-
-  generateRiskGrid(storms, bounds, gridSize) {
-    const grid = new Map();
-
-    storms.forEach((storm) => {
-      const gridLat = Math.floor(storm.cell.lat / gridSize) * gridSize;
-      const gridLon = Math.floor(storm.cell.lon / gridSize) * gridSize;
-      const key = `${gridLat},${gridLon}`;
-
-      if (!grid.has(key)) {
-        grid.set(key, { risk: 0, count: 0 });
-      }
-
-      const cell = grid.get(key);
-      cell.risk += storm.tornado.score;
-      cell.count += 1;
-    });
-
-    return grid;
-  }
-
-  drawRiskGrid(canvas, gridData, gridSize) {
-    const ctx = canvas.getContext('2d');
-    const bounds = this.map.getBounds();
-
-    gridData.forEach((data, key) => {
-      const [lat, lon] = key.split(',').map(Number);
-      const avgRisk = data.risk / data.count;
-
-      const point = this.map.latLngToContainerPoint([lat, lon]);
-      const color = this.getRiskColor(avgRisk);
-      const alpha = Math.min(255, Math.round((avgRisk / 100) * 200));
-
-      ctx.fillStyle = `rgba(${color.r},${color.g},${color.b},${alpha / 255})`;
-      ctx.fillRect(point.x - 10, point.y - 10, 20, 20);
-    });
-  }
-
-  getRiskColor(risk) {
-    if (risk > 80) return { r: 255, g: 0, b: 0 }; // Red
-    if (risk > 60) return { r: 255, g: 102, b: 0 }; // Orange
-    if (risk > 40) return { r: 255, g: 187, b: 0 }; // Yellow
-    return { r: 52, g: 211, b: 153 }; // Green
-  }
-}
-
-/**
  * Environmental Profile Comparison Tool
  */
 export function createProfileComparison(storms) {

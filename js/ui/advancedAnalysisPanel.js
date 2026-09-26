@@ -6,25 +6,25 @@
  */
 
 import { HodographView, calculateSRH, calculateShear } from './hodographView.js';
-import { EnvironmentalOverlay, formatEnvironment, calculateERV } from './environmentalOverlay.js';
+import { formatEnvironment, calculateERV } from './environmentalOverlay.js';
 import { getStormTrends, predictStormMovement, calculateGrowthRate } from '../analysis/stormTrendAnalysis.js';
-import { StormMetricsAnimation, HailScatterPlot, TornadoRiskMap, renderLeaderboard } from './dataVisualizations.js';
+import { StormMetricsAnimation, HailScatterPlot, renderLeaderboard } from './dataVisualizations.js';
 import { MobileOptimizer } from './renderOptimization.js';
 import { debounce } from '../utils.js';
+import { settings, setSetting } from '../storage.js';
 
 export class AdvancedAnalysisPanel {
-  constructor(containerId, map, mapView) {
+  constructor(containerId, map, mapView, getAllAnalyses) {
     this.container = document.getElementById(containerId);
     this.map = map;
     this.mapView = mapView;
+    this.getAllAnalyses = getAllAnalyses;
     this.activeTab = 'overview';
     this.selectedStorm = null;
 
     this.hodograph = null;
-    this.envOverlay = null;
     this.metricsAnimation = null;
     this.hailScatter = null;
-    this.tornadoRiskMap = null;
     this.mobileOptimizer = new MobileOptimizer(window.innerHeight > window.innerWidth);
 
     this.initialize();
@@ -161,6 +161,23 @@ export class AdvancedAnalysisPanel {
     `;
   }
 
+  /** Real wind-profile levels from the environment fetch (js/api/openmeteo.js
+   * returns `windProfile: {sfc, w850, w700, w500}`, each a real {u,v}
+   * vector) - falls back to a labeled placeholder only when real data is
+   * genuinely missing (e.g. wind fields absent from a given API response). */
+  buildWindProfile(env) {
+    const realLevels = [
+      { m: 0, w: env?.windProfile?.sfc },
+      { m: 1500, w: env?.windProfile?.w850 },
+      { m: 3000, w: env?.windProfile?.w700 },
+      { m: 5500, w: env?.windProfile?.w500 },
+    ].filter((l) => l.w);
+    if (realLevels.length >= 2) {
+      return { levels: realLevels.map((l) => l.m), uWind: realLevels.map((l) => l.w.u), vWind: realLevels.map((l) => l.w.v) };
+    }
+    return { levels: [0, 1000, 3000, 5000, 7000, 10000], uWind: [0, 5, 10, 12, 8, 5], vWind: [0, 3, 8, 10, 6, 3] };
+  }
+
   renderHodograph(content) {
     if (!this.selectedStorm?.environment) {
       content.innerHTML = '<p style="color: #888;">No environment data available</p>';
@@ -168,15 +185,16 @@ export class AdvancedAnalysisPanel {
     }
 
     const env = this.selectedStorm.environment;
-    const windProfile = {
-      levels: [0, 1000, 3000, 5000, 7000, 10000],
-      uWind: env.uWinds || [0, 5, 10, 12, 8, 5],
-      vWind: env.vWinds || [0, 3, 8, 10, 6, 3],
-    };
+    const windProfile = this.buildWindProfile(env);
 
+    // u = east component, v = north component (matches windVector()'s own
+    // convention in openmeteo.js: sin for u, cos for v on a compass
+    // bearing) - this used to be swapped, mixing two different conventions
+    // into the same SRH/shear vector-difference math below as the real
+    // wind profile.
     const stormMotion = {
-      u: this.selectedStorm.cell.moveSpeedKts ? Math.cos(this.selectedStorm.cell.moveDirDeg * Math.PI / 180) * this.selectedStorm.cell.moveSpeedKts : 0,
-      v: this.selectedStorm.cell.moveSpeedKts ? Math.sin(this.selectedStorm.cell.moveDirDeg * Math.PI / 180) * this.selectedStorm.cell.moveSpeedKts : 0,
+      u: this.selectedStorm.cell.moveSpeedKts ? Math.sin(this.selectedStorm.cell.moveDirDeg * Math.PI / 180) * this.selectedStorm.cell.moveSpeedKts : 0,
+      v: this.selectedStorm.cell.moveSpeedKts ? Math.cos(this.selectedStorm.cell.moveDirDeg * Math.PI / 180) * this.selectedStorm.cell.moveSpeedKts : 0,
     };
 
     const srh0_1 = calculateSRH(windProfile, stormMotion, 'low');
@@ -209,10 +227,10 @@ export class AdvancedAnalysisPanel {
     }
 
     const env = formatEnvironment(this.selectedStorm.environment);
-    const erv = calculateERV(this.selectedStorm.cell, calculateShear({
-      uWind: [0, 10],
-      vWind: [0, 8],
-    }));
+    // Was always fed a hardcoded fake wind profile regardless of real
+    // conditions - now reuses the same real profile the Hodograph tab uses.
+    const shear = calculateShear(this.buildWindProfile(this.selectedStorm.environment));
+    const erv = calculateERV(this.selectedStorm.cell, shear);
 
     content.innerHTML = `
       <div class="environment-content">
@@ -231,8 +249,6 @@ export class AdvancedAnalysisPanel {
         <div class="env-param">
           <strong>Estimated Rotational Velocity:</strong> ${erv} kt
         </div>
-        <button class="env-btn" onclick="alert('Toggling CAPE overlay...')">🌍 Show CAPE Overlay</button>
-        <button class="env-btn" onclick="alert('Toggling LCL overlay...')">☁️ Show LCL Overlay</button>
       </div>
     `;
   }
@@ -261,11 +277,17 @@ export class AdvancedAnalysisPanel {
 
     this.hailScatter = new HailScatterPlot('hail-scatter');
     this.hailScatter.initialize();
+    this.hailScatter.render(this.getAllAnalyses?.() || [this.selectedStorm]);
   }
 
   renderRanking(content) {
+    const storms = this.getAllAnalyses?.() || [];
+    if (!storms.length) {
+      content.innerHTML = '<p style="color: #888;">No storms currently detected</p>';
+      return;
+    }
     content.innerHTML = '<div id="leaderboard-container"></div>';
-    // This would be populated with actual storm data in production
+    renderLeaderboard('leaderboard-container', storms);
   }
 
   renderPerformance(content) {
@@ -288,12 +310,9 @@ export class AdvancedAnalysisPanel {
             ${isOptimal ? '✓ Optimal' : '⚠ Degraded'}
           </strong>
         </div>
-        <label style="display: flex; align-items: center; gap: 8px; margin-top: 10px;">
-          <input type="checkbox" id="battery-saver" /> Battery Saver Mode
-        </label>
-        <label style="display: flex; align-items: center; gap: 8px; margin-top: 10px;">
-          <input type="checkbox" id="landscape-mode" /> Landscape Mode
-        </label>
+        <div class="perf-metric" style="margin-top: 10px; opacity: 0.75; font-size: 12px;">
+          Data Saver is ${settings.dataSaver ? 'on' : 'off'} — change it in Settings → Quick presets / Units &amp; data.
+        </div>
       </div>
     `;
   }

@@ -14,7 +14,7 @@
  * These are heuristic interpretations of official data — clearly labelled
  * as unofficial everywhere they surface in the UI.
  */
-import { clamp, scaleTo, haversineKm, fmtSpeed } from '../utils.js';
+import { clamp, scaleTo, haversineKm, fmtSpeed, bearingDeg } from '../utils.js';
 import { settings } from '../storage.js';
 import {
   recordSample, getHistory, pruneStale, stormTrend,
@@ -256,9 +256,14 @@ function angleDiff(a, b) {
 /** True if `other` sits upstream of `cell` along cell's motion vector. */
 function isUpstream(cell, other) {
   if (cell.moveDirDeg == null) return false;
-  const brg = Math.atan2(other.lon - cell.lon, other.lat - cell.lat) * 180 / Math.PI;
+  // Proper spherical bearing (matches bearingDeg's own formula) instead of a
+  // flat atan2(dLon, dLat) - that approximation drops the cos(latitude)
+  // term, which skews the computed bearing by tens of degrees at mid/high
+  // US latitudes for cells offset mostly east-west, potentially flipping
+  // this 45°-window "training storms" check the wrong way.
+  const brg = bearingDeg(cell.lat, cell.lon, other.lat, other.lon);
   const upstream = (cell.moveDirDeg + 180) % 360;
-  return angleDiff(((brg % 360) + 360) % 360, upstream) < 45;
+  return angleDiff(brg, upstream) < 45;
 }
 
 /**

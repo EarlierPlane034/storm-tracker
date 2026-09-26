@@ -19,10 +19,11 @@ import {
 import { SpotterReportManager, ChaserLeaderboard, SharedStormTracking } from '../social/communityFeatures.js';
 import { predictHailSwath, predictTornadoTouchdownZone, predictSupercellSplitting, forecastReflectivityTrends, generateForecastNarrative } from '../forecast/advancedForecasting.js';
 import { VoiceNarrator, AudioAlerts, VoiceCommands, generateStormBriefing } from '../audio/voiceAlerts.js';
-import { ChaseRouter, LightningProximityAlert, SafeHavenFinder, ChaseDecisionScore } from '../chase/chaseSafety.js';
+import { ChaseRouter, SafeHavenFinder, ChaseDecisionScore } from '../chase/chaseSafety.js';
 import { StormDatabase, StormReplay } from '../data/stormDatabase.js';
 import { StormStructureVisualizer, MultiStormComparison, ForecastGraph } from '../ui/advancedCharting.js';
 import { RadarPatternTutorial, StormQuiz, SpotterCertification, StormIdentificationGame } from '../education/stormTraining.js';
+import { getHistory } from '../analysis/trends.js';
 import { el } from '../utils.js';
 import { getLocation } from '../location.js';
 import { settings } from '../storage.js';
@@ -41,7 +42,6 @@ export class Week3FeaturesPanel {
     this.audioAlerts = new AudioAlerts();
     this.voiceCommands = new VoiceCommands();
     this.chaseRouter = new ChaseRouter(map);
-    this.lightningAlert = new LightningProximityAlert();
     this.safeHavenFinder = new SafeHavenFinder();
     this.stormDatabase = new StormDatabase();
     this.radarTutorial = new RadarPatternTutorial();
@@ -383,6 +383,20 @@ export class Week3FeaturesPanel {
   /**
    * 5. Chase Support & Safety Tab
    */
+  /** This app has no live lightning-strike feed (LightningProximityAlert's
+   * recordStrike() needs real strike lat/lon this app never fetches), so
+   * the old static "No recent strikes nearby" text was never anything but
+   * a hardcoded placeholder. Reuses the already-computed lightning hazard
+   * sub-score instead (echo-top/reflectivity based, per stormAnalyzer.js)
+   * - honestly labeled as a radar-derived estimate, not a strike detector. */
+  lightningThreatText() {
+    const score = this.selectedAnalyses[0]?.scores?.lightning;
+    if (score == null) return 'No lightning data for this storm yet.';
+    if (score >= 61) return `⚠ High radar-inferred lightning threat (${score}/100) — frequent lightning likely with this storm.`;
+    if (score >= 41) return `Elevated radar-inferred lightning threat (${score}/100).`;
+    return `Low radar-inferred lightning threat (${score}/100).`;
+  }
+
   renderChaseSafety(container) {
     if (!this.selectedStorm) {
       container.innerHTML = '<div class="muted">Select a storm from the map for chase guidance</div>';
@@ -441,8 +455,8 @@ export class Week3FeaturesPanel {
         </div>
 
         <div class="chase-card">
-          <h3>⚡ Lightning Proximity</h3>
-          <div id="lightning-status" class="lightning-status">No recent strikes nearby</div>
+          <h3>⚡ Lightning Threat</h3>
+          <div id="lightning-status" class="lightning-status">${this.lightningThreatText()}</div>
         </div>
       </div>
     `;
@@ -588,11 +602,20 @@ export class Week3FeaturesPanel {
       comparison.renderComparison(this.selectedAnalyses, 'severeScore');
     }
 
+    // Was always a hardcoded linear guess (current+5/+8) regardless of the
+    // storm's real trend, discarding forecastReflectivityTrends() (which
+    // was imported but never called) - now fed this storm's real scan
+    // history so the 15/30-min projection reflects its actual trajectory.
+    const hist = getHistory(this.selectedStorm.id).map((s) => ({ dbz: s.maxDbz, vil: s.vil, tops: s.topKft }));
+    const forecast = forecastReflectivityTrends(this.selectedStorm.id, hist);
     const forecastGraph = new ForecastGraph('chart-forecast');
     forecastGraph.initialize();
-    forecastGraph.renderForecast({
-      dbz: { current: this.selectedStorm.maxDbz, forecast15: this.selectedStorm.maxDbz + 5, forecast30: this.selectedStorm.maxDbz + 8 }
-    }, 'Reflectivity (dBZ)');
+    if (forecast) {
+      forecastGraph.renderForecast(forecast.forecast, 'Reflectivity (dBZ)');
+    } else {
+      document.getElementById('chart-forecast').innerHTML =
+        '<div class="muted chart-empty">Forecast needs a few more radar scans of this storm first.</div>';
+    }
   }
 
   /**
@@ -639,9 +662,47 @@ export class Week3FeaturesPanel {
             <div>High Score: ${gameStats.highScore}</div>
           </div>
           <button class="game-btn" id="btn-play-game">Play Now</button>
+          <div id="game-scenario"></div>
         </div>
       </div>
     `;
+
+    // Study/Play had no listeners at all - clicking either did nothing
+    // observable, and certification/game progress could never advance
+    // through the UI even though both classes' real tracking methods
+    // (completeLesson/submitAnswer) worked fine once actually called.
+    this.container?.querySelectorAll('.lesson-btn').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const lesson = this.radarTutorial.getLesson(btn.dataset.lesson);
+        if (!lesson) return;
+        this.radarTutorial.completeLesson(lesson.id);
+        alert(`${lesson.title}\n\n${lesson.content.trim()}`);
+        this.renderEducation(container); // refresh the progress bar/badge
+      });
+    });
+
+    this.container?.querySelector('#btn-play-game')?.addEventListener('click', () => {
+      const scenario = this.identificationGame.scenarios[
+        gameStats.gamesPlayed % this.identificationGame.scenarios.length
+      ];
+      const box = this.container?.querySelector('#game-scenario');
+      if (!box) return;
+      box.innerHTML = `
+        <div class="game-question">
+          <div>${scenario.question}</div>
+          <div class="game-options">
+            ${scenario.options.map((opt, i) => `<button class="game-btn" data-answer="${i}">${opt}</button>`).join('')}
+          </div>
+        </div>
+      `;
+      box.querySelectorAll('[data-answer]').forEach((optBtn) => {
+        optBtn.addEventListener('click', () => {
+          const result = this.identificationGame.submitAnswer(scenario.id, Number(optBtn.dataset.answer));
+          box.innerHTML = `<div class="muted">${result.feedback} (+${result.points} pts)</div>`;
+          setTimeout(() => this.renderEducation(container), 1200);
+        });
+      });
+    });
   }
 
   /**

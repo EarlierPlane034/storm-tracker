@@ -112,7 +112,13 @@ export class RadarController {
     // Single-site "ridge" cache keeps the 5 most recent scans per product.
     const tiltProd = prod.tilts ? prod.tilts[this.tiltIndex] : prod.id;
     const idx = Math.round(frameOffset / CONFIG.radar.frameStepMin);
-    return `${IEM_TILES}/ridge::${this.site.id}-${tiltProd}-${Math.min(idx, 4)}/{z}/{x}/{y}.png`;
+    // this.site can still be null this early (pickSite() resolves async on
+    // the first map moveend) - a site-only product like VEL/SRV has no
+    // mosaicFallback to fall back to above, so without this guard selecting
+    // one before that resolves threw here. A guaranteed-missing site id just
+    // 404s (blank tiles, same as any other off-site request this app
+    // already tolerates) until pickSite()'s own rebuild() call fixes it up.
+    return `${IEM_TILES}/ridge::${this.site?.id ?? 'UNKNOWN'}-${tiltProd}-${Math.min(idx, 4)}/{z}/{x}/{y}.png`;
   }
 
   /**

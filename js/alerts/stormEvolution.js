@@ -33,9 +33,12 @@ export function detectStormMergers(storms) {
       // Only care about storms within 80 km
       if (dist > 80) continue;
 
-      // Calculate storm motion vectors (in km/min)
-      const speed1 = (s1.cell.moveSpeedKts || 25) * 0.0515; // kt to km/min
-      const speed2 = (s2.cell.moveSpeedKts || 25) * 0.0515;
+      // Calculate storm motion vectors (in km/min). 1 kt = 1.852 km/h =
+      // 1.852/60 km/min ~= 0.03087 - this used to use 0.0515 (~1.67x too
+      // large), which understated every merge-time estimate by the same
+      // factor (e.g. a true ~27 min merge was reported as ~16 min).
+      const speed1 = (s1.cell.moveSpeedKts || 25) * (1.852 / 60); // kt to km/min
+      const speed2 = (s2.cell.moveSpeedKts || 25) * (1.852 / 60);
       const dir1 = s1.cell.moveDirDeg || 270;
       const dir2 = s2.cell.moveDirDeg || 270;
 
@@ -61,7 +64,11 @@ export function detectStormMergers(storms) {
           storm2Id: s2.cell.id,
           storm2Name: s2.type.label,
           currentDistanceKm: Math.round(dist * 10) / 10,
-          closureRateKtMin: Math.round(closure * 60 * 10) / 10,  // Convert to kt/min
+          // `closure` is km/min; *60 -> km/h, /1.852 -> kt. This is a closing
+          // SPEED (knots), not a "rate of knots per minute" - renamed from
+          // the old closureRateKtMin, which was also computing km/h (not
+          // kt/min) due to the missing /1.852 on top of the conversion bug above.
+          closureRateKts: Math.round((closure * 60 / 1.852) * 10) / 10,
           estimatedMergeTimeMin: timeToMerge,
           combinedScore: Math.round((s1.severeScore + s2.severeScore) / 2),
           alertLevel: timeToMerge < 10 ? 'critical' : timeToMerge < 20 ? 'high' : 'moderate'
@@ -218,8 +225,8 @@ export function predictMergerImpact(merger) {
     predictedMergedScore: Math.min(mergedScore, 100),
     expectedThreatLevel: mergedScore > 70 ? 'extreme' : mergedScore > 50 ? 'high' : 'moderate',
     likelyOutcome:
-      merger.closureRateKtMin > 60 ? 'Violent collision - severe threats' :
-      merger.closureRateKtMin > 40 ? 'Strong merger - enhanced tornado/hail' :
+      merger.closureRateKts > 60 ? 'Violent collision - severe threats' :
+      merger.closureRateKts > 40 ? 'Strong merger - enhanced tornado/hail' :
       'Gradual interaction - moderate enhancement',
     warningRecommendation: mergedScore > 70 ?
       'NEW TORNADO WARNING may be needed on merged storm' :

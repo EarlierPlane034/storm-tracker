@@ -276,7 +276,7 @@ export function evaluateStorms(analyses, user) {
       if (a.tornado.score >= th.tornadoPct) {
         once(`custom-tor:${c.id}`, () => deliver(
           'Tornado threshold crossed',
-          `${a.type.label} ${dist} away: AI tornado chance ${a.tornado.score}% (your threshold: ${th.tornadoPct}%).`,
+          `${a.type.label} ${dist} away: AI tornado score ${a.tornado.score}/100 — ${a.tornado.label} (${a.tornado.pct}) — crossed your threshold of ${th.tornadoPct}/100.`,
           'danger'));
       }
       if (c.maxHailIn != null && c.maxHailIn >= th.hailIn) {

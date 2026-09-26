@@ -27,11 +27,13 @@ export function initMesocycloneLayer(map) {
 export function renderMesocyclones(storms, map) {
   if (!map || !map._mesoLayer) return;
 
-  // Clear old markers
-  mesoMarkers.forEach(m => {
-    if (m.marker) m.marker.remove();
-    if (m.trail) m.trail.remove();
-  });
+  // Clear old markers. clearLayers() on the whole feature group (rather
+  // than only removing what mesoMarkers/mesoTrailLines happen to track) is
+  // what actually catches the strength rings drawn by drawStrengthRings()
+  // below - those were added straight to map._mesoLayer with no reference
+  // kept anywhere, so the old per-marker/.trail removal never touched them
+  // and they piled up (never-removed circles) on every single refresh.
+  map._mesoLayer.clearLayers();
   mesoMarkers.clear();
   mesoTrailLines.clear();
 
@@ -129,9 +131,13 @@ function drawRotationTrail(meso, map) {
   // Extrapolate next position if movement available
   if (meso.movement) {
     const bearing = meso.movement.bearing * Math.PI / 180;
-    const dist = meso.movement.distanceKm / 111; // km to degrees
+    const dist = meso.movement.distanceKm / 111; // km to degrees latitude
     const nextLat = meso.lat + (dist * Math.cos(bearing));
-    const nextLon = meso.lon + (dist * Math.sin(bearing));
+    // A degree of longitude is shorter than a degree of latitude away from
+    // the equator by cos(latitude) - without it this trail pointed short of
+    // (and at a distorted angle from) the mesocyclone's real next position,
+    // worse at higher latitudes.
+    const nextLon = meso.lon + (dist * Math.sin(bearing)) / Math.cos(meso.lat * Math.PI / 180);
     points.push([nextLat, nextLon]);
   }
 

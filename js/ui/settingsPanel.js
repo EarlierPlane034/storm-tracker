@@ -368,7 +368,7 @@ export function renderSettings({ onChanged, onRequestNotifications, onRouteCheck
       el('label', {}, [document.createTextNode(label), value]), input,
     ]));
   };
-  thresholdRow('Tornado % threshold', 'customThresholds.tornadoPct', 10, 90, 5, '%');
+  thresholdRow('Tornado score threshold', 'customThresholds.tornadoPct', 10, 90, 5, '/100');
   thresholdRow('Hail size threshold', 'customThresholds.hailIn', 0.5, 3, 0.25, '"');
   thresholdRow('Wind score threshold', 'customThresholds.windScore', 20, 90, 5);
 

@@ -30,7 +30,8 @@ export function detectMesocyclones(stormCell) {
       id: `tvs-${stormCell.id}`,
       lat: stormCell.lat,
       lon: stormCell.lon,
-      type: 'TVS',
+      kind: 'tvs',       // stable category for tracking/matching below
+      type: 'TVS',       // display label
       strength: 95,  // TVS = very strong
       confidence: 0.95,
       timestamp: new Date(),
@@ -38,14 +39,19 @@ export function detectMesocyclones(stormCell) {
     });
   }
 
-  // Mesocyclone rank from radar
+  // Mesocyclone rank from radar. The MDA strength rank runs 1-25 (see
+  // js/api/iem.js's parseMeso doc comment), not 0-6 - this used to divide by
+  // 6, so anything above rank 6 blew past 100 (e.g. rank 11 -> 183) and
+  // rendered as an "extreme" ring even for what stormAnalyzer.js's own
+  // hook-echo tiers call only "possible/weak-to-moderate" rotation.
   if (stormCell.meso && stormCell.meso > 0) {
-    const strength = (stormCell.meso / 6) * 100; // Normalize rank 0-6 to 0-100
+    const strength = Math.min(100, (stormCell.meso / 25) * 100);
     mesos.push({
       id: `meso-${stormCell.id}`,
       lat: stormCell.lat,
       lon: stormCell.lon,
-      type: `Meso Rank ${stormCell.meso}`,
+      kind: 'meso',                        // stable category for tracking/matching below
+      type: `Meso Rank ${stormCell.meso}`,  // display label (changes with rank - not for matching)
       strength: Math.round(strength),
       confidence: 0.85,
       timestamp: new Date(),
@@ -66,7 +72,11 @@ export function trackMesocyclones(stormId, currentMesos) {
   const tracked = currentMesos.map(meso => {
     let movement = null;
 
-    if (prior.last && prior.last.type === meso.type) {
+    // Match by `kind` (tvs/meso), not `type` - `type` embeds the numeric
+    // rank ("Meso Rank 8" vs "Meso Rank 9"), which changes almost every
+    // scan even for a single persistent mesocyclone. Matching on that used
+    // to reset movement/persistence tracking to zero on every rank change.
+    if (prior.last && prior.last.kind === meso.kind) {
       const dist = haversineKm(prior.last.lat, prior.last.lon, meso.lat, meso.lon);
       movement = {
         distanceKm: Math.round(dist * 10) / 10,
@@ -77,7 +87,7 @@ export function trackMesocyclones(stormId, currentMesos) {
     return {
       ...meso,
       movement,
-      persistenceScans: prior.history.filter(m => m.type === meso.type).length + 1
+      persistenceScans: prior.history.filter(m => m.kind === meso.kind).length + 1
     };
   });
 

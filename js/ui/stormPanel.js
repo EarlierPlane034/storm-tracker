@@ -47,10 +47,10 @@ function renderHazardMatrix(analyses, onSelect) {
     tr.appendChild(el('td', {
       html: `<span class="score-pill ${scoreClass(a.severeScore)}" style="font-size:12px;padding:2px 7px">${a.severeScore}</span>`,
     }));
-    tr.appendChild(el('td', { text: `${a.tornado.score}%` }));
+    tr.appendChild(el('td', { text: a.tornado.pct }));
     tr.appendChild(el('td', { text: c.maxHailIn != null ? fmtHailSize(c.maxHailIn, settings.units) : '—' }));
-    tr.appendChild(el('td', { text: `${a.scores.wind}` }));
-    tr.appendChild(el('td', { text: `${a.scores.lightning}` }));
+    tr.appendChild(el('td', { text: `${a.scores.wind}/100` }));
+    tr.appendChild(el('td', { text: `${a.scores.lightning}/100` }));
     tr.appendChild(el('td', {
       html: a.hookEcho ? `<span class="hook-chip ${a.hookEcho.level}" style="margin:0">🪝 ${a.hookEcho.level}</span>` : '—',
     }));
@@ -71,7 +71,8 @@ function exportStormsJson(analyses) {
     lon: a.cell.lon,
     validTime: a.cell.valid ? a.cell.valid.toISOString() : null,
     severeScore: a.severeScore,
-    tornadoPct: a.tornado.score,
+    tornadoScore: a.tornado.score,
+    tornadoChancePct: a.tornado.pct,
     hailIn: a.cell.maxHailIn ?? null,
     windScore: a.scores.wind,
     lightningScore: a.scores.lightning,
@@ -347,7 +348,7 @@ export function openStormSheet(a) {
   add('POSH', c.posh != null ? `${c.posh}%` : null);
   add('Rotation', c.tvs ? 'TVS!' : c.meso > 0 ? `meso rank ${c.meso}/25` : 'none');
   add('Persistence', `${a.persistence} scans`);
-  add('Severe chance', `${a.severeScore}%-ile`);
+  add('AI severe score', `${a.severeScore}/100`);
   add('Lifecycle', LIFECYCLE_LABEL[a.lifecycle] || a.lifecycle);
   add('Radar', c.site);
   if (a.rapidIntensification) {
