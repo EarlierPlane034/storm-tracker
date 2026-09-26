@@ -57,6 +57,24 @@ export class AdvancedAnalysisPanel {
 
     this.setupEventListeners();
     this.applyStyles();
+    this.applyTabVisibility();
+  }
+
+  /** Hide sub-tab buttons the user turned off in Settings → Visible tabs.
+   * If the active one just got hidden, fall back to the first visible one. */
+  applyTabVisibility() {
+    const hidden = settings.hiddenAnalysisTabs || [];
+    const buttons = this.container?.querySelectorAll('.tab-btn') || [];
+    let activeStillVisible = false;
+    buttons.forEach((btn) => {
+      const isHidden = hidden.includes(btn.dataset.tab);
+      btn.hidden = isHidden;
+      if (!isHidden && btn.dataset.tab === this.activeTab) activeStillVisible = true;
+    });
+    if (!activeStillVisible) {
+      const firstVisible = [...buttons].find((b) => !b.hidden);
+      if (firstVisible) { this.activeTab = firstVisible.dataset.tab; this.switchTab(this.activeTab); }
+    }
   }
 
   setupEventListeners() {
@@ -338,7 +356,7 @@ export class AdvancedAnalysisPanel {
         padding: 8px 12px;
         background: rgba(100,150,255,0.1);
         border: 1px solid rgba(100,150,255,0.2);
-        color: #e5eaf0;
+        color: var(--text);
         border-radius: 4px;
         cursor: pointer;
         font-size: 12px;
@@ -351,8 +369,8 @@ export class AdvancedAnalysisPanel {
       }
 
       .tab-btn.active {
-        background: #0099ff;
-        border-color: #0099ff;
+        background: var(--accent);
+        border-color: var(--accent);
       }
 
       .panel-content {
@@ -385,24 +403,24 @@ export class AdvancedAnalysisPanel {
 
       .stat-label {
         font-size: 11px;
-        color: #888;
+        color: var(--text-dim);
         margin-bottom: 5px;
       }
 
       .stat-value {
         font-size: 18px;
         font-weight: bold;
-        color: #fbbf24;
+        color: var(--warn);
       }
 
       .env-param {
         padding: 10px;
         margin: 8px 0;
         background: rgba(20, 30, 50, 0.85);
-        border-left: 3px solid #38bdf8;
+        border-left: 3px solid var(--accent);
         border-radius: 4px;
         font-size: 12px;
-        color: #d1d5db;
+        color: var(--text);
       }
 
       .env-btn {
@@ -411,7 +429,7 @@ export class AdvancedAnalysisPanel {
         margin-top: 10px;
         background: rgba(100,150,255,0.2);
         border: 1px solid rgba(100,150,255,0.4);
-        color: #0099ff;
+        color: var(--accent);
         border-radius: 4px;
         cursor: pointer;
         font-size: 12px;

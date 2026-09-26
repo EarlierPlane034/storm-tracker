@@ -72,14 +72,34 @@ export function renderSettings({ onChanged, onRequestNotifications, onRouteCheck
   const host = document.getElementById('settings-body');
   host.textContent = '';
 
-  const section = (title) => host.appendChild(el('h4', { class: 'trend-title', style: 'margin:14px 4px 4px', text: title }));
+  // Everything below appends to `target`, not `host` directly - group()
+  // below repoints it at a fresh <details> so a whole run of section()/
+  // toggleRow()/etc. calls lands inside that collapsible category instead
+  // of the flat top-level list. 14 always-expanded headings made this
+  // panel a long scroll even with the search box; grouped into ~5
+  // categories (plus presets/visibility, which stay up top and open),
+  // most people only ever open the one or two categories they came for.
+  let target = host;
+
+  /** Start a new collapsible category. Everything appended via section()/
+   * toggleRow()/etc. until the next group() call lands inside it. */
+  const group = (title, opts = {}) => {
+    const details = el('details', { class: 'settings-group' });
+    if (opts.open) details.open = true;
+    details.appendChild(el('summary', { class: 'settings-group-summary', text: title }));
+    host.appendChild(details);
+    target = details;
+    return details;
+  };
+
+  const section = (title) => target.appendChild(el('h4', { class: 'trend-title', style: 'margin:14px 4px 4px', text: title }));
 
   const selectRow = (label, hint, path, options) => {
     const sel = el('select', {
       onchange: (e) => { setSetting(path, coerce(e.target.value)); onChanged(path); },
     }, options.map(([v, t]) => el('option', { value: String(v), text: t })));
     sel.value = String(getPath(path));
-    host.appendChild(el('div', { class: 'setting-row' }, [
+    target.appendChild(el('div', { class: 'setting-row' }, [
       el('label', { html: `${label}${hint ? `<span class="hint">${hint}</span>` : ''}` }), sel,
     ]));
   };
@@ -90,7 +110,7 @@ export function renderSettings({ onChanged, onRequestNotifications, onRouteCheck
       onchange: (e) => { setSetting(path, e.target.checked); onChanged(path); },
     });
     input.checked = !!getPath(path);
-    host.appendChild(el('div', { class: 'setting-row' }, [
+    target.appendChild(el('div', { class: 'setting-row' }, [
       el('label', { html: `${label}${hint ? `<span class="hint">${hint}</span>` : ''}` }),
       el('label', { class: 'switch' }, [input, el('span', { class: 'knob' })]),
     ]));
@@ -102,7 +122,7 @@ export function renderSettings({ onChanged, onRequestNotifications, onRouteCheck
       oninput: (e) => { setSetting(path, Number(e.target.value)); onChanged(path); },
     });
     input.value = String(getPath(path));
-    host.appendChild(el('div', { class: 'setting-row' }, [
+    target.appendChild(el('div', { class: 'setting-row' }, [
       el('label', { html: `${label}${hint ? `<span class="hint">${hint}</span>` : ''}` }), input,
     ]));
   };
@@ -152,20 +172,17 @@ export function renderSettings({ onChanged, onRequestNotifications, onRouteCheck
     },
   }));
 
-  section('Units & data');
-  selectRow('Distance / weather units', null, 'units', [['imperial', 'Imperial (mi, mph, °F)'], ['metric', 'Metric (km, km/h, °C)']]);
-  selectRow('Refresh interval', 'How often radar & alerts re-poll', 'refreshIntervalSec',
-    [[30, '30 s'], [60, '1 min'], [120, '2 min'], [300, '5 min']]);
-
   // Roadmap ask: an easy way to turn whole features off — hides the tab
   // entirely (decluttering the bar and skipping its render work), not
   // just a buried preference. Radar and Settings itself always stay on.
-  section('Visible tabs');
+  // Kept open by default (unlike the categories below) since "what's
+  // visible" is exactly what people come here to change most often.
+  group('Visible tabs & panels', { open: true });
   // Its own container so this section (whose checkbox count changes when
   // Week 3's sub-tab rows appear/disappear) can be identified and skipped by
   // generic "click every checkbox" sweeps elsewhere.
   const tabVisibilitySection = el('div', { id: 'tab-visibility-section' });
-  host.appendChild(tabVisibilitySection);
+  target.appendChild(tabVisibilitySection);
   tabVisibilitySection.appendChild(el('div', { class: 'muted', style: 'font-size:11px;margin:0 4px 8px', text: 'Turn off tabs you don\'t use — fewer things on screen, less for the app to compute.' }));
   const HIDEABLE_TABS = [
     ['storms', 'Storms'], ['alerts', 'Alerts'], ['reports', 'Reports'],
@@ -213,6 +230,36 @@ export function renderSettings({ onChanged, onRequestNotifications, onRouteCheck
     }
   }
 
+  if (!(settings.hiddenTabs || []).includes('analysis')) {
+    tabVisibilitySection.appendChild(el('div', { class: 'muted', style: 'font-size:11px;margin:10px 4px 4px', text: 'Analysis sub-tabs' }));
+    const HIDEABLE_ANALYSIS = [
+      ['overview', 'Overview'], ['hodograph', 'Hodograph'], ['environment', 'Environment'],
+      ['trends', 'Trends'], ['ranking', 'Rankings'], ['performance', 'Performance'],
+    ];
+    for (const [key, label] of HIDEABLE_ANALYSIS) {
+      const input = el('input', {
+        type: 'checkbox',
+        onchange: (e) => {
+          const hidden = new Set(settings.hiddenAnalysisTabs || []);
+          if (e.target.checked) hidden.delete(key); else hidden.add(key);
+          setSetting('hiddenAnalysisTabs', [...hidden]);
+          onChanged('hiddenAnalysisTabs');
+        },
+      });
+      input.checked = !(settings.hiddenAnalysisTabs || []).includes(key);
+      tabVisibilitySection.appendChild(el('div', { class: 'setting-row', style: 'padding:6px 4px' }, [
+        el('label', { text: label }),
+        el('label', { class: 'switch' }, [input, el('span', { class: 'knob' })]),
+      ]));
+    }
+  }
+
+  group('Display & Accessibility');
+  section('Units & data');
+  selectRow('Distance / weather units', null, 'units', [['imperial', 'Imperial (mi, mph, °F)'], ['metric', 'Metric (km, km/h, °C)']]);
+  selectRow('Refresh interval', 'How often radar & alerts re-poll', 'refreshIntervalSec',
+    [[30, '30 s'], [60, '1 min'], [120, '2 min'], [300, '5 min']]);
+
   section('Radar');
   rangeRow('Radar transparency', null, 'radarOpacity', 0.2, 1, 0.05);
   selectRow('Animation speed', null, 'animFps', [[1, 'Slow (1 fps)'], [2, '2 fps'], [4, 'Normal (4 fps)'], [6, '6 fps'], [8, 'Fast (8 fps)']]);
@@ -234,14 +281,14 @@ export function renderSettings({ onChanged, onRequestNotifications, onRouteCheck
   toggleRow('Haptic alerts', 'Vibration patterns by severity (Android only — iOS blocks web vibration)', 'hapticAlerts');
   toggleRow('Spoken alerts', 'Speak dangerous alerts aloud — plays through CarPlay/Bluetooth car audio', 'voiceAlerts');
 
-  section('Storm chasing');
+  group('Storm Chasing');
   toggleRow('Intercept guidance', 'Map pin + route showing where the nearest dangerous storm is headed and how to get there', 'interceptGuidance');
   toggleRow('Chase mode', 'On-map HUD with bearing/ETA to your target storm, your speed, and keeps the screen awake', 'chaseMode');
   selectRow('Tailgate distance', 'Chase HUD warns if you get closer than this to your target storm', 'tailgateDistanceKm',
     [[1, '1 km (~0.6 mi)'], [2, '2 km (~1.2 mi)'], [3, '3 km (~1.9 mi) — default'], [5, '5 km (~3.1 mi)'], [8, '8 km (~5 mi)']]);
   toggleRow('Follow me', 'Auto-center the map on your position as you drive', 'followMe');
   toggleRow('Data saver', 'Slower refresh (5 min) for weak cell signal in the field', 'dataSaver');
-  host.appendChild(el('div', { class: 'setting-row' }, [
+  target.appendChild(el('div', { class: 'setting-row' }, [
     el('label', { html: 'Share my location<span class="hint">Sends your exact GPS coordinates + a timestamp — for texting a contact in an emergency</span>' }),
     el('button', {
       class: 'product-btn', text: '📍 Share',
@@ -259,7 +306,7 @@ export function renderSettings({ onChanged, onRequestNotifications, onRouteCheck
   ]));
 
   // Pre-chase checklist (persisted; reset before each chase).
-  host.appendChild(el('div', { class: 'muted', style: 'font-size:11px;margin:8px 4px 2px', text: 'Pre-chase checklist' }));
+  target.appendChild(el('div', { class: 'muted', style: 'font-size:11px;margin:8px 4px 2px', text: 'Pre-chase checklist' }));
   const CHECK_ITEMS = [
     'Fuel topped off', 'Phone + battery pack charged', 'Water & snacks',
     'First aid kit', 'Flashlight / headlamp', 'Paper map (cell backup)',
@@ -276,12 +323,12 @@ export function renderSettings({ onChanged, onRequestNotifications, onRouteCheck
       },
     });
     input.checked = !!settings.checklist[item];
-    host.appendChild(el('div', { class: 'setting-row', style: 'padding:8px 4px' }, [
+    target.appendChild(el('div', { class: 'setting-row', style: 'padding:8px 4px' }, [
       el('label', { text: item }),
       el('label', { class: 'switch' }, [input, el('span', { class: 'knob' })]),
     ]));
   }
-  host.appendChild(el('div', { class: 'setting-row' }, [
+  target.appendChild(el('div', { class: 'setting-row' }, [
     el('label', { class: 'muted', text: 'Reset checklist for a new chase' }),
     el('button', {
       class: 'product-btn', text: 'Reset',
@@ -289,6 +336,7 @@ export function renderSettings({ onChanged, onRequestNotifications, onRouteCheck
     }),
   ]));
 
+  group('Alerts & Notifications');
   section('AI analyst');
   selectRow('AI sensitivity', 'How readily scores climb', 'aiSensitivity',
     [['conservative', 'Conservative'], ['balanced', 'Balanced'], ['aggressive', 'Aggressive']]);
@@ -305,13 +353,13 @@ export function renderSettings({ onChanged, onRequestNotifications, onRouteCheck
       ? 'Enabled ✓' : 'Enable notifications',
     onclick: onRequestNotifications,
   });
-  host.appendChild(el('div', { class: 'setting-row' }, [
+  target.appendChild(el('div', { class: 'setting-row' }, [
     el('label', { html: 'Browser notifications<span class="hint">Requires installing to Home Screen on iOS</span>' }), notifBtn,
   ]));
   // Background push via the user's own Cloudflare worker.
   section('Background alerts (works when app is closed)');
   if (settings.pushEnabled) {
-    host.appendChild(el('div', { class: 'setting-row' }, [
+    target.appendChild(el('div', { class: 'setting-row' }, [
       el('label', { html: `Background alerts: <strong style="color:var(--ok)">ON</strong><span class="hint">${settings.pushServerUrl}</span>` }),
       el('button', { class: 'product-btn', text: 'Turn off', onclick: () => { onDisconnectPush?.(); } }),
     ]));
@@ -322,13 +370,13 @@ export function renderSettings({ onChanged, onRequestNotifications, onRouteCheck
       value: settings.pushServerUrl || '',
       style: 'flex:1;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:8px;font-size:13px',
     });
-    host.appendChild(el('div', { class: 'setting-row' }, [pushInput,
+    target.appendChild(el('div', { class: 'setting-row' }, [pushInput,
       el('button', {
         class: 'product-btn', text: 'Connect',
         onclick: () => { if (pushInput.value.trim()) onConnectPush?.(pushInput.value.trim()); },
       }),
     ]));
-    host.appendChild(el('div', {
+    target.appendChild(el('div', {
       class: 'muted', style: 'font-size:11px;margin:0 4px 8px',
       text: 'Paste your Cloudflare push worker URL to get warnings even when StormLens is closed. Setup guide: docs/PUSH_SETUP.md in the project. Requires iOS 16.4+ and Home Screen install.',
     }));
@@ -364,7 +412,7 @@ export function renderSettings({ onChanged, onRequestNotifications, onRouteCheck
       },
     });
     input.value = String(getPath(path));
-    host.appendChild(el('div', { class: 'setting-row' }, [
+    target.appendChild(el('div', { class: 'setting-row' }, [
       el('label', {}, [document.createTextNode(label), value]), input,
     ]));
   };
@@ -372,10 +420,11 @@ export function renderSettings({ onChanged, onRequestNotifications, onRouteCheck
   thresholdRow('Hail size threshold', 'customThresholds.hailIn', 0.5, 3, 0.25, '"');
   thresholdRow('Wind score threshold', 'customThresholds.windScore', 20, 90, 5);
 
+  group('Favorites & Routes');
   section('Favorite locations');
-  host.appendChild(el('div', { class: 'muted', style: 'font-size:11px;margin:0 4px 4px', text: 'Tap a favorite to fly the map there. Favorites are also watched by the alert engine — warnings and strong rotation near them will notify you.' }));
+  target.appendChild(el('div', { class: 'muted', style: 'font-size:11px;margin:0 4px 4px', text: 'Tap a favorite to fly the map there. Favorites are also watched by the alert engine — warnings and strong rotation near them will notify you.' }));
   for (const [i, fav] of settings.favorites.entries()) {
-    host.appendChild(el('div', { class: 'setting-row' }, [
+    target.appendChild(el('div', { class: 'setting-row' }, [
       el('label', {
         text: `📍 ${fav.name}`,
         style: 'cursor:pointer',
@@ -391,7 +440,7 @@ export function renderSettings({ onChanged, onRequestNotifications, onRouteCheck
       }),
     ]));
   }
-  host.appendChild(el('div', { class: 'setting-row' }, [
+  target.appendChild(el('div', { class: 'setting-row' }, [
     el('label', { html: 'Add current map view<span class="hint">Saves the map centre as a favorite</span>' }),
     el('button', { class: 'product-btn', text: '+ Save', onclick: () => onChanged('favorites.add') }),
   ]));
@@ -401,21 +450,22 @@ export function renderSettings({ onChanged, onRequestNotifications, onRouteCheck
     type: 'text', placeholder: 'Destination (city or address)',
     style: 'flex:1;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:8px;font-size:13px',
   });
-  host.appendChild(el('div', { class: 'setting-row' }, [routeInput,
+  target.appendChild(el('div', { class: 'setting-row' }, [routeInput,
     el('button', {
       class: 'product-btn', text: 'Check',
       onclick: () => { if (routeInput.value.trim()) onRouteCheck?.(routeInput.value.trim()); },
     }),
     el('button', { class: 'product-btn', text: 'Clear', onclick: () => onRouteCheck?.(null) }),
   ]));
-  host.appendChild(el('div', { class: 'muted', style: 'font-size:11px;margin:0 4px', text: 'Draws the driving route from your location (or the map centre) and reports which tracked storms pass near it.' }));
+  target.appendChild(el('div', { class: 'muted', style: 'font-size:11px;margin:0 4px', text: 'Draws the driving route from your location (or the map centre) and reports which tracked storms pass near it.' }));
 
   section('Chase journal');
-  renderJournalSection(host, {
+  renderJournalSection(target, {
     onChanged: () => onChanged('journal.refresh'),
     onShowTrack: () => onChanged('chase.replay'),
   });
 
+  group('Data & About');
   section('Data feeds (last update)');
   const feeds = [
     ['cells', 'Storm cells'], ['alerts', 'NWS alerts'], ['reports', 'Storm reports'],
@@ -425,7 +475,7 @@ export function renderSettings({ onChanged, onRequestNotifications, onRouteCheck
   const updated = getState().lastUpdated || {};
   for (const [key, label] of feeds) {
     const at = updated[key];
-    host.appendChild(el('div', { class: 'setting-row', style: 'padding:7px 4px' }, [
+    target.appendChild(el('div', { class: 'setting-row', style: 'padding:7px 4px' }, [
       el('label', { text: label }),
       el('span', {
         class: 'muted', style: 'font-family:var(--mono);font-size:11px',
@@ -435,7 +485,7 @@ export function renderSettings({ onChanged, onRequestNotifications, onRouteCheck
   }
 
   section('About');
-  host.appendChild(el('div', { class: 'setting-row' }, [
+  target.appendChild(el('div', { class: 'setting-row' }, [
     el('label', { html: 'About StormLens<span class="hint">Everything the app can do, data sources, credits</span>' }),
     el('button', { class: 'product-btn', text: 'Open →', onclick: () => onChanged('about.open') }),
   ]));

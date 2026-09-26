@@ -34,14 +34,17 @@ export class FeatureDashboard {
       {
         category: 'Week 3 Features (All New)',
         items: [
-          { id: 'week3', icon: '🤖', label: 'ML Predictions', badge: 'NEW', desc: 'AI hail/tornado probability' },
-          { id: 'week3', icon: '👥', label: 'Community', badge: 'NEW', desc: 'Spotter reports & leaderboard' },
-          { id: 'week3', icon: '🔮', label: 'Forecasting', badge: 'NEW', desc: 'Hail swath, tornado zones' },
-          { id: 'week3', icon: '🎙️', label: 'Voice', badge: 'NEW', desc: 'Voice alerts & narration' },
-          { id: 'week3', icon: '🛡️', label: 'Chase Safety', badge: 'NEW', desc: 'Routes & safe havens' },
-          { id: 'week3', icon: '💾', label: 'History', badge: 'NEW', desc: 'Database & replay' },
-          { id: 'week3', icon: '📈', label: 'Charts', badge: 'NEW', desc: '3D visualization' },
-          { id: 'week3', icon: '🎓', label: 'Training', badge: 'NEW', desc: 'Lessons & certification' },
+          // subTab matches week3FeaturesPanel.js's data-tab keys exactly, so
+          // tapping a card jumps straight to that sub-tab instead of just
+          // opening Week 3 on whatever sub-tab happened to be active last.
+          { id: 'week3', subTab: 'ml-predictions', icon: '🤖', label: 'ML Predictions', badge: 'NEW', desc: 'AI hail/tornado probability' },
+          { id: 'week3', subTab: 'community', icon: '👥', label: 'Community', badge: 'NEW', desc: 'Spotter reports & leaderboard' },
+          { id: 'week3', subTab: 'forecasting', icon: '🔮', label: 'Forecasting', badge: 'NEW', desc: 'Hail swath, tornado zones' },
+          { id: 'week3', subTab: 'voice', icon: '🎙️', label: 'Voice', badge: 'NEW', desc: 'Voice alerts & narration' },
+          { id: 'week3', subTab: 'chase-safety', icon: '🛡️', label: 'Chase Safety', badge: 'NEW', desc: 'Routes & safe havens' },
+          { id: 'week3', subTab: 'database', icon: '💾', label: 'History', badge: 'NEW', desc: 'Database & replay' },
+          { id: 'week3', subTab: 'charts', icon: '📈', label: 'Charts', badge: 'NEW', desc: '3D visualization' },
+          { id: 'week3', subTab: 'education', icon: '🎓', label: 'Training', badge: 'NEW', desc: 'Lessons & certification' },
         ]
       },
       {
@@ -73,7 +76,7 @@ export class FeatureDashboard {
               <h3 class="category-title">${category.category}</h3>
               <div class="feature-grid">
                 ${category.items.map((item) => `
-                  <div class="feature-card" data-feature="${item.id}" data-label="${item.label}">
+                  <div class="feature-card" data-feature="${item.id}" data-label="${item.label}" data-subtab="${item.subTab || ''}">
                     <div class="feature-icon">${item.icon}</div>
                     <div class="feature-info">
                       <div class="feature-label">${item.label}</div>
@@ -105,7 +108,7 @@ export class FeatureDashboard {
       card.addEventListener('click', () => {
         const feature = card.dataset.feature;
         const label = card.dataset.label;
-        onSelectFeature(feature, label);
+        onSelectFeature(feature, label, card.dataset.subtab || null);
       });
     });
   }

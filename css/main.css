@@ -561,6 +561,7 @@ body.colorblind .risk-chip.on-med  { background: #5c4c00; color: #fde68a; }
 body.colorblind .risk-chip.on-high { background: #5c1f4a; color: #f0abfc; }
 body.colorblind .tor { color: #CC79A7; }
 body.colorblind .svr { color: #E69F00; }
+body.colorblind .ffw { color: #56B4E9; }
 
 .trend-arrow { font-size: 12px; font-weight: 700; }
 .trend-up { color: var(--danger); }
@@ -989,6 +990,29 @@ body.night .map-wrap::after {
 .about-list { margin: 0 14px 12px 28px; }
 .about-list li { font-size: 12.5px; line-height: 1.5; color: var(--text); margin-bottom: 4px; }
 
+/* Settings panel: collapsible categories (same disclosure pattern as
+   .about-group above) so a long options list doesn't have to be scrolled
+   by hand — most people only ever open the one or two they came for. */
+.settings-group {
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  margin: 10px 0;
+  overflow: hidden;
+}
+.settings-group-summary {
+  padding: 13px 14px;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  list-style: none;
+}
+.settings-group-summary::-webkit-details-marker { display: none; }
+.settings-group-summary::after { content: "▸"; float: right; color: var(--text-dim); transition: transform 0.15s; }
+.settings-group[open] .settings-group-summary::after { transform: rotate(90deg); }
+.settings-group[open] .settings-group-summary { border-bottom: 1px solid var(--border); }
+.settings-group > .trend-title:first-of-type { margin-top: 6px !important; }
+
 /* landscape: tighten chrome */
 @media (orientation: landscape) and (max-height: 500px) {
   .tab { padding: 8px 2px; }
@@ -996,7 +1020,7 @@ body.night .map-wrap::after {
 }
 
 /* ---------- Storm Comparison Button ---------- */
-.storm-compare-btn {
+.card-icon-btn {
   background: rgba(0, 153, 255, 0.15);
   border: 1px solid rgba(0, 153, 255, 0.4);
   color: #0099ff;
@@ -1010,13 +1034,13 @@ body.night .map-wrap::after {
   justify-content: center;
 }
 
-.storm-compare-btn:hover {
+.card-icon-btn:hover {
   background: rgba(0, 153, 255, 0.25);
   border-color: rgba(0, 153, 255, 0.6);
   box-shadow: 0 0 6px rgba(0, 153, 255, 0.4);
 }
 
-.storm-compare-btn:active {
+.card-icon-btn:active {
   background: rgba(0, 153, 255, 0.35);
   transform: scale(0.95);
 }

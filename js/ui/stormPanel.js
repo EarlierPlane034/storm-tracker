@@ -171,9 +171,10 @@ export function renderStormList(analyses, { onSelect, hiddenCount = 0 }) {
 
     // === NEW: Compare button ===
     const compareBtn = el('button', {
-      class: 'storm-compare-btn',
+      class: 'card-icon-btn',
       text: '⚖️',
-      title: 'Add to comparison'
+      title: 'Add to comparison',
+      'aria-label': 'Add to comparison',
     });
     compareBtn.addEventListener('click', (e) => {
       e.stopPropagation();
@@ -183,9 +184,10 @@ export function renderStormList(analyses, { onSelect, hiddenCount = 0 }) {
 
     const isPinned = settings.bookmarkedStormIds.includes(c.id);
     const pinBtn = el('button', {
-      class: 'storm-compare-btn',
+      class: 'card-icon-btn',
       text: isPinned ? '📌' : '📍',
       title: isPinned ? 'Unpin storm' : 'Pin storm',
+      'aria-label': isPinned ? 'Unpin storm' : 'Pin storm',
     });
     pinBtn.addEventListener('click', (e) => {
       e.stopPropagation();

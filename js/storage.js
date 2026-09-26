@@ -9,6 +9,7 @@ const KEY = 'stormlens.settings.v1';
 export const DEFAULT_SETTINGS = {
   hiddenTabs: [],               // top-level tabs the user has turned off (declutter + skip their rendering)
   hiddenWeek3Tabs: [],          // Week 3 sub-tabs the user has turned off
+  hiddenAnalysisTabs: [],       // Analysis sub-tabs the user has turned off
   units: 'imperial',            // 'imperial' | 'metric'
   refreshIntervalSec: 60,       // radar/alerts refresh
   animFps: 4,                   // radar loop frames per second

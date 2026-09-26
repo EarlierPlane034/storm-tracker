@@ -260,7 +260,13 @@ function applySettingsSearch(query) {
     }
     const match = q === '' || el.textContent.toLowerCase().includes(q);
     el.classList.toggle('search-hidden', !match);
-    if (match) headerHasMatch = true;
+    if (match) {
+      headerHasMatch = true;
+      // Settings is now organized into collapsible <details> categories;
+      // auto-open whichever one contains a match so a search doesn't land
+      // on a result the user can't actually see.
+      if (q !== '') { const group = el.closest('details.settings-group'); if (group) group.open = true; }
+    }
   }
   finalizeHeader();
 }
@@ -301,7 +307,7 @@ function renderFeaturesPanel() {
   const container = document.getElementById('features-panel');
   if (!container) return;
   const dashboard = new FeatureDashboard();
-  dashboard.render(container, (feature, label) => {
+  dashboard.render(container, (feature, label, subTab) => {
     const panel = document.getElementById(`panel-${feature}`);
     if (panel) {
       // Show the feature panel
@@ -313,6 +319,9 @@ function renderFeaturesPanel() {
       document.querySelectorAll('.tab').forEach((t) => {
         t.classList.toggle('active', t.dataset.panel === feature);
       });
+      // Jump straight to the specific sub-tab a card promised, instead of
+      // just opening Week 3 on whatever sub-tab happened to be active last.
+      if (feature === 'week3' && subTab) week3Panel?.switchTab(subTab);
       showToast(`Opening ${label}…`, { ttlMs: 1500 });
     }
   });
@@ -1293,6 +1302,7 @@ function wireChrome() {
       if (path === 'nightMode' || path === 'largeText' || path === 'highContrast' || path === 'fontFamily') applyTheme();
       if (path === 'hiddenTabs') { applyTabVisibility(); rerenderSettings(); }
       if (path === 'hiddenWeek3Tabs') week3Panel?.applyTabVisibility();
+      if (path === 'hiddenAnalysisTabs') advancedPanel?.applyTabVisibility();
       if (path === 'colorblindMode') { applyTheme(); mapView.renderCells(visibleAnalyses(geo.getLocation())); }
       if (path === 'chaseMode') applyChaseMode();
       if (path === 'dataSaver') {

@@ -795,7 +795,7 @@ export class Week3FeaturesPanel {
 
       .tab-btn.active {
         background: rgba(59, 130, 246, 0.25);
-        color: #e5eaf0;
+        color: var(--text);
         border-color: rgba(100,150,255,0.7);
       }
 
@@ -832,7 +832,7 @@ export class Week3FeaturesPanel {
       .voice-card h3, .chase-card h3, .db-card h3, .chart-card h3, .edu-card h3 {
         margin: 0 0 12px 0;
         font-size: 14px;
-        color: #e5eaf0;
+        color: var(--text);
         font-weight: 600;
       }
 
@@ -925,7 +925,7 @@ export class Week3FeaturesPanel {
       button.voice-btn, button.export-btn, button.lesson-btn, button.game-btn {
         background: rgba(59, 130, 246, 0.25);
         border: 1.5px solid rgba(100,150,255,0.4);
-        color: #e5eaf0;
+        color: var(--text);
         padding: 10px 14px;
         border-radius: 6px;
         cursor: pointer;
