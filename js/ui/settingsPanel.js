@@ -6,6 +6,37 @@ import { getState } from '../api/sources.js';
 import { getLocation } from '../location.js';
 import { showToast } from './toasts.js';
 
+// One-tap bundles of settings for how the app is being used right now,
+// instead of hunting down and re-toggling several individual switches.
+const PRESETS = {
+  casual: {
+    label: 'Casual Viewing',
+    hint: 'Slower refresh, chase HUD off — just keeping an eye on things.',
+    values: {
+      refreshIntervalSec: 120, animFps: 4, chaseMode: false, followMe: false,
+      voiceAlerts: false, hapticAlerts: false, soundAlerts: false, notifySensitivity: 'high-only',
+    },
+  },
+  activeChase: {
+    label: 'Active Chase',
+    hint: 'Fast refresh, chase HUD, and every alert channel on.',
+    values: {
+      refreshIntervalSec: 30, animFps: 6, chaseMode: true, followMe: true,
+      voiceAlerts: true, hapticAlerts: true, soundAlerts: true, notifySensitivity: 'all',
+      interceptGuidance: true,
+    },
+  },
+  overnight: {
+    label: 'Overnight Watch',
+    hint: 'Dim red theme; only urgent alerts break through to wake you.',
+    values: {
+      nightMode: true, chaseMode: false, followMe: false, refreshIntervalSec: 60, animFps: 2,
+      voiceAlerts: true, hapticAlerts: true, soundAlerts: true, notifySensitivity: 'high-only',
+      quietHours: { enabled: true, startHour: 22, endHour: 7 },
+    },
+  },
+};
+
 export function renderSettings({ onChanged, onRequestNotifications, onRouteCheck, onConnectPush, onDisconnectPush }) {
   const host = document.getElementById('settings-body');
   host.textContent = '';
@@ -44,6 +75,26 @@ export function renderSettings({ onChanged, onRequestNotifications, onRouteCheck
       el('label', { html: `${label}${hint ? `<span class="hint">${hint}</span>` : ''}` }), input,
     ]));
   };
+
+  section('Quick presets');
+  host.appendChild(el('div', { class: 'muted', style: 'font-size:11px;margin:0 4px 8px', text: 'One tap to bundle the settings below for how you\'re using the app right now.' }));
+  const presetRow = el('div', { style: 'display:flex;flex-wrap:wrap;gap:8px;margin:0 4px 12px' });
+  for (const [key, preset] of Object.entries(PRESETS)) {
+    presetRow.appendChild(el('button', {
+      class: 'product-btn',
+      text: preset.label,
+      title: preset.hint,
+      onclick: () => {
+        for (const [path, value] of Object.entries(preset.values)) {
+          setSetting(path, value);
+          onChanged(path);
+        }
+        showToast(`Applied “${preset.label}” preset.`);
+        onChanged('journal.refresh'); // redraw settings to reflect the new values
+      },
+    }));
+  }
+  host.appendChild(presetRow);
 
   section('Units & data');
   selectRow('Distance / weather units', null, 'units', [['imperial', 'Imperial (mi, mph, °F)'], ['metric', 'Metric (km, km/h, °C)']]);
