@@ -729,6 +729,17 @@ body.colorblind .svr { color: #E69F00; }
   100% { transform: scale(1.7); opacity: 0; }
 }
 
+/* Cluster badge — stands in for several storms too close together on
+ * screen to tell apart at a zoomed-out view; tap zooms into the group. */
+.cell-cluster {
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 50%;
+  font-family: var(--mono); font-weight: 800; font-size: 13px;
+  color: #fff;
+  border: 3px solid rgba(255,255,255,0.9);
+  box-shadow: 0 0 10px rgba(0,0,0,0.7);
+}
+
 /* Rapid-intensification badge: small corner flag on the marker. */
 .ri-badge {
   position: absolute;

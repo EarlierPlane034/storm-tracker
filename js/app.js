@@ -1151,6 +1151,20 @@ function wireChrome() {
   const panels = ['storms', 'alerts', 'reports', 'analysis', 'week3', 'ai', 'settings', 'about', 'features'];
   const tabs = document.querySelectorAll('.tab');
 
+  // Roadmap ask: an easy way to turn features off — hides the tab button
+  // entirely (decluttering the bar and skipping that panel's render work)
+  // rather than just leaving it reachable but empty.
+  const applyTabVisibility = () => {
+    const hidden = settings.hiddenTabs || [];
+    let activeHidden = false;
+    tabs.forEach((t) => {
+      const isHidden = hidden.includes(t.dataset.panel);
+      t.hidden = isHidden;
+      if (isHidden && t.classList.contains('active')) activeHidden = true;
+    });
+    if (activeHidden) showPanel(null);
+  };
+
   const PANEL_CLOSE_MS = 180;
   const showPanel = (name) => {
     for (const p of [...panels, 'layers']) {
@@ -1175,6 +1189,7 @@ function wireChrome() {
     const name = tab.dataset.panel;
     showPanel(name === 'map' ? null : name);
   }));
+  applyTabVisibility();
   document.querySelectorAll('.panel-close').forEach((btn) =>
     btn.addEventListener('click', () => showPanel(null)));
   document.getElementById('btn-menu').addEventListener('click', () => {
@@ -1224,6 +1239,8 @@ function wireChrome() {
         return;
       }
       if (path === 'nightMode' || path === 'largeText' || path === 'highContrast' || path === 'fontFamily') applyTheme();
+      if (path === 'hiddenTabs') { applyTabVisibility(); rerenderSettings(); }
+      if (path === 'hiddenWeek3Tabs') week3Panel?.applyTabVisibility();
       if (path === 'colorblindMode') { applyTheme(); mapView.renderCells(visibleAnalyses(geo.getLocation())); }
       if (path === 'chaseMode') applyChaseMode();
       if (path === 'dataSaver') {

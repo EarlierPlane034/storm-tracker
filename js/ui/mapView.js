@@ -100,6 +100,13 @@ export class MapView {
       container.appendChild(btn);
       L.popup({ closeButton: true }).setLatLng(e.latlng).setContent(container).openOn(this.map);
     });
+
+    // Clustering depends on zoom (pixel distance between storms changes as
+    // you zoom), so re-run it on zoom change using the last data we have —
+    // no need to re-fetch or re-score anything, just re-bucket + redraw.
+    this.map.on('zoomend', () => {
+      if (this._lastAnalyses) this.renderCells(this._lastAnalyses);
+    });
   }
 
   initBasemapSwitcher(calmTiles) {
@@ -485,67 +492,140 @@ export class MapView {
     this._lastAnalyses = analyses;
     if (this._lastUser) this.renderRangeRings(this._lastUser.lat, this._lastUser.lon, analyses);
 
-    // Cap DOM markers on very active days; analyses arrive sorted most
-    // dangerous first, so the cap only ever drops the weakest cells.
-    for (const a of analyses.slice(0, 100)) {
-      const c = a.cell;
-      const color = severityColor(a.severeScore);
-      const size = a.severeScore >= 61 ? 30 : a.severeScore >= 41 ? 26 : 22;
-      const pulse = a.tornado.score >= 41 ? ' pulse' : '';
-      const riBadge = a.rapidIntensification
-        ? '<div class="ri-badge" title="Rapidly intensifying">⚡</div>' : '';
+    // On a busy outbreak day at a zoomed-out view, dozens of storms and
+    // their 4-point projected tracks used to all render individually —
+    // 50 storms with motion is 250+ Leaflet layers created from scratch
+    // every refresh, and visually an unreadable pile of overlapping dots
+    // (the literal complaint that led to this). Below CLUSTER_ZOOM, group
+    // storms that are within CLUSTER_PIXEL_RADIUS of each other on screen
+    // into one badge; below TRACK_ZOOM, skip projected tracks entirely —
+    // a 15-60 min projection is a few pixels at that scale anyway.
+    const zoom = this.map.getZoom();
+    const showTracks = zoom > MapView.TRACK_ZOOM;
+    const list = analyses.slice(0, 100);
+    const clusters = zoom <= MapView.CLUSTER_ZOOM
+      ? this._clusterByPixel(list, MapView.CLUSTER_PIXEL_RADIUS)
+      : list.map((a) => [a]);
 
-      const marker = L.marker([c.lat, c.lon], {
-        icon: L.divIcon({
-          className: '',
-          html: `<div class="cell-marker${pulse}" style="width:${size}px;height:${size}px;background:${color}">${a.severeScore}${riBadge}</div>`,
-          iconSize: [size, size],
-          iconAnchor: [size / 2, size / 2],
-        }),
-        zIndexOffset: 1000 - a.rank,
-      });
-      marker.on('click', () => this.onCellTap(a));
-      this.groups.cells.addLayer(marker);
-      this.cellMarkers.push({ marker, cell: c });
-
-      // Projected track: 15/30/45/60-minute positions along storm motion.
-      if (c.moveDirDeg != null && c.moveSpeedKts > 3) {
-        const pts = [[c.lat, c.lon]];
-        for (const min of [15, 30, 45, 60]) {
-          const distKm = (c.moveSpeedKts * 1.852 * min) / 60;
-          pts.push(destinationPoint(c.lat, c.lon, c.moveDirDeg, distKm));
-        }
-        const line = L.polyline(pts, {
-          color, weight: 2, opacity: 0.7, dashArray: '4 6', interactive: false,
-        });
-        this.groups.stormTracks.addLayer(line);
-        // Warned/dangerous storms get RadarScope-style time-of-arrival
-        // labels; weaker cells keep quiet tick marks to avoid clutter.
-        const labelled = a.warnings.length > 0 || a.severeScore >= 61;
-        pts.slice(1).forEach((p, i) => {
-          if (labelled) {
-            this.groups.stormTracks.addLayer(L.marker(p, {
-              icon: L.divIcon({
-                className: '',
-                html: `<div class="toa-label" style="border-color:${color}">+${(i + 1) * 15}</div>`,
-                iconSize: null, iconAnchor: [12, 8],
-              }),
-              interactive: false,
-            }));
-          } else {
-            this.groups.stormTracks.addLayer(L.circleMarker(p, {
-              radius: 2.5, color, fillOpacity: 0.9, weight: 1, interactive: false,
-            }));
-          }
-        });
-        line.bindTooltip(`moving ${compassDir(c.moveDirDeg)} at ${fmtSpeed(c.moveSpeedKts, settings.units)}`);
+    for (const group of clusters) {
+      if (group.length === 1) {
+        this._addCellMarker(group[0]);
+        if (showTracks) this._addStormTrack(group[0]);
+      } else {
+        this._addClusterMarker(group);
       }
     }
 
     // Render mesocyclones for all storms
     renderMesocyclones(analyses, this.map);
   }
+
+  /** Group cells within `radiusPx` screen pixels of each other (O(n²) but
+   * n is capped at 100 by the caller, so worst case ~5k comparisons —
+   * sub-millisecond). Singletons come back as their own one-item group. */
+  _clusterByPixel(list, radiusPx) {
+    const points = list.map((a) => ({ a, pt: this.map.latLngToContainerPoint([a.cell.lat, a.cell.lon]) }));
+    const used = new Array(points.length).fill(false);
+    const clusters = [];
+    for (let i = 0; i < points.length; i++) {
+      if (used[i]) continue;
+      const group = [points[i].a];
+      used[i] = true;
+      for (let j = i + 1; j < points.length; j++) {
+        if (used[j]) continue;
+        if (points[i].pt.distanceTo(points[j].pt) <= radiusPx) { group.push(points[j].a); used[j] = true; }
+      }
+      clusters.push(group);
+    }
+    return clusters;
+  }
+
+  _addCellMarker(a) {
+    const c = a.cell;
+    const color = severityColor(a.severeScore);
+    const size = a.severeScore >= 61 ? 30 : a.severeScore >= 41 ? 26 : 22;
+    const pulse = a.tornado.score >= 41 ? ' pulse' : '';
+    const riBadge = a.rapidIntensification
+      ? '<div class="ri-badge" title="Rapidly intensifying">⚡</div>' : '';
+
+    const marker = L.marker([c.lat, c.lon], {
+      icon: L.divIcon({
+        className: '',
+        html: `<div class="cell-marker${pulse}" style="width:${size}px;height:${size}px;background:${color}">${a.severeScore}${riBadge}</div>`,
+        iconSize: [size, size],
+        iconAnchor: [size / 2, size / 2],
+      }),
+      zIndexOffset: 1000 - a.rank,
+    });
+    marker.on('click', () => this.onCellTap(a));
+    this.groups.cells.addLayer(marker);
+    this.cellMarkers.push({ marker, cell: c });
+  }
+
+  /** A single badge standing in for `group.length` storms too close
+   * together on screen to tell apart — tap to zoom into just that group. */
+  _addClusterMarker(group) {
+    const maxA = group.reduce((best, a) => (a.severeScore > best.severeScore ? a : best), group[0]);
+    const color = severityColor(maxA.severeScore);
+    const lat = group.reduce((s, a) => s + a.cell.lat, 0) / group.length;
+    const lon = group.reduce((s, a) => s + a.cell.lon, 0) / group.length;
+    const size = 34;
+    const marker = L.marker([lat, lon], {
+      icon: L.divIcon({
+        className: '',
+        html: `<div class="cell-cluster" style="width:${size}px;height:${size}px;background:${color}">${group.length}</div>`,
+        iconSize: [size, size],
+        iconAnchor: [size / 2, size / 2],
+      }),
+      zIndexOffset: 2000,
+    });
+    marker.on('click', () => {
+      const bounds = L.latLngBounds(group.map((a) => [a.cell.lat, a.cell.lon]));
+      this.map.fitBounds(bounds.pad(0.5), { maxZoom: MapView.CLUSTER_ZOOM + 3 });
+    });
+    this.groups.cells.addLayer(marker);
+  }
+
+  _addStormTrack(a) {
+    const c = a.cell;
+    const color = severityColor(a.severeScore);
+    // Projected track: 15/30/45/60-minute positions along storm motion.
+    if (c.moveDirDeg == null || !(c.moveSpeedKts > 3)) return;
+    const pts = [[c.lat, c.lon]];
+    for (const min of [15, 30, 45, 60]) {
+      const distKm = (c.moveSpeedKts * 1.852 * min) / 60;
+      pts.push(destinationPoint(c.lat, c.lon, c.moveDirDeg, distKm));
+    }
+    const line = L.polyline(pts, {
+      color, weight: 2, opacity: 0.7, dashArray: '4 6', interactive: false,
+    });
+    this.groups.stormTracks.addLayer(line);
+    // Warned/dangerous storms get RadarScope-style time-of-arrival
+    // labels; weaker cells keep quiet tick marks to avoid clutter.
+    const labelled = a.warnings.length > 0 || a.severeScore >= 61;
+    pts.slice(1).forEach((p, i) => {
+      if (labelled) {
+        this.groups.stormTracks.addLayer(L.marker(p, {
+          icon: L.divIcon({
+            className: '',
+            html: `<div class="toa-label" style="border-color:${color}">+${(i + 1) * 15}</div>`,
+            iconSize: null, iconAnchor: [12, 8],
+          }),
+          interactive: false,
+        }));
+      } else {
+        this.groups.stormTracks.addLayer(L.circleMarker(p, {
+          radius: 2.5, color, fillOpacity: 0.9, weight: 1, interactive: false,
+        }));
+      }
+    });
+    line.bindTooltip(`moving ${compassDir(c.moveDirDeg)} at ${fmtSpeed(c.moveSpeedKts, settings.units)}`);
+  }
 }
+
+MapView.CLUSTER_ZOOM = 7;          // at/below this zoom, badge-cluster overlapping storms
+MapView.TRACK_ZOOM = 6;            // at/below this zoom, skip projected tracks — a few px at this scale
+MapView.CLUSTER_PIXEL_RADIUS = 40; // screen px within which two storms are "the same dot"
 
 function escape(s) {
   return String(s ?? '').replace(/[&<>"]/g, (ch) => (

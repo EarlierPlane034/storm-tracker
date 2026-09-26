@@ -50,6 +50,62 @@ export function renderSettings({ onChanged, onRequestNotifications, onRouteCheck
   selectRow('Refresh interval', 'How often radar & alerts re-poll', 'refreshIntervalSec',
     [[30, '30 s'], [60, '1 min'], [120, '2 min'], [300, '5 min']]);
 
+  // Roadmap ask: an easy way to turn whole features off — hides the tab
+  // entirely (decluttering the bar and skipping its render work), not
+  // just a buried preference. Radar and Settings itself always stay on.
+  section('Visible tabs');
+  // Its own container so this section (whose checkbox count changes when
+  // Week 3's sub-tab rows appear/disappear) can be identified and skipped by
+  // generic "click every checkbox" sweeps elsewhere.
+  const tabVisibilitySection = el('div', { id: 'tab-visibility-section' });
+  host.appendChild(tabVisibilitySection);
+  tabVisibilitySection.appendChild(el('div', { class: 'muted', style: 'font-size:11px;margin:0 4px 8px', text: 'Turn off tabs you don\'t use — fewer things on screen, less for the app to compute.' }));
+  const HIDEABLE_TABS = [
+    ['storms', 'Storms'], ['alerts', 'Alerts'], ['reports', 'Reports'],
+    ['analysis', 'Analysis'], ['week3', 'Week 3'], ['ai', 'AI'], ['features', 'Features'],
+  ];
+  for (const [key, label] of HIDEABLE_TABS) {
+    const input = el('input', {
+      type: 'checkbox',
+      onchange: (e) => {
+        const hidden = new Set(settings.hiddenTabs || []);
+        if (e.target.checked) hidden.delete(key); else hidden.add(key);
+        setSetting('hiddenTabs', [...hidden]);
+        onChanged('hiddenTabs');
+      },
+    });
+    input.checked = !(settings.hiddenTabs || []).includes(key);
+    tabVisibilitySection.appendChild(el('div', { class: 'setting-row', style: 'padding:6px 4px' }, [
+      el('label', { text: label }),
+      el('label', { class: 'switch' }, [input, el('span', { class: 'knob' })]),
+    ]));
+  }
+
+  if (!(settings.hiddenTabs || []).includes('week3')) {
+    tabVisibilitySection.appendChild(el('div', { class: 'muted', style: 'font-size:11px;margin:10px 4px 4px', text: 'Week 3 sub-tabs' }));
+    const HIDEABLE_WEEK3 = [
+      ['ml-predictions', 'ML Predictions'], ['community', 'Community'], ['forecasting', 'Forecasting'],
+      ['voice', 'Voice'], ['chase-safety', 'Chase Safety'], ['database', 'History'],
+      ['charts', 'Charts'], ['education', 'Training'],
+    ];
+    for (const [key, label] of HIDEABLE_WEEK3) {
+      const input = el('input', {
+        type: 'checkbox',
+        onchange: (e) => {
+          const hidden = new Set(settings.hiddenWeek3Tabs || []);
+          if (e.target.checked) hidden.delete(key); else hidden.add(key);
+          setSetting('hiddenWeek3Tabs', [...hidden]);
+          onChanged('hiddenWeek3Tabs');
+        },
+      });
+      input.checked = !(settings.hiddenWeek3Tabs || []).includes(key);
+      tabVisibilitySection.appendChild(el('div', { class: 'setting-row', style: 'padding:6px 4px' }, [
+        el('label', { text: label }),
+        el('label', { class: 'switch' }, [input, el('span', { class: 'knob' })]),
+      ]));
+    }
+  }
+
   section('Radar');
   rangeRow('Radar transparency', null, 'radarOpacity', 0.2, 1, 0.05);
   selectRow('Animation speed', null, 'animFps', [[1, 'Slow (1 fps)'], [2, '2 fps'], [4, 'Normal (4 fps)'], [6, '6 fps'], [8, 'Fast (8 fps)']]);

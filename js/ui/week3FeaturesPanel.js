@@ -25,6 +25,7 @@ import { StormStructureVisualizer, MultiStormComparison, ForecastGraph } from '.
 import { RadarPatternTutorial, StormQuiz, SpotterCertification, StormIdentificationGame } from '../education/stormTraining.js';
 import { el } from '../utils.js';
 import { getLocation } from '../location.js';
+import { settings } from '../storage.js';
 
 export class Week3FeaturesPanel {
   constructor(containerId, map) {
@@ -86,6 +87,24 @@ export class Week3FeaturesPanel {
 
     this.setupEventListeners();
     this.applyStyles();
+    this.applyTabVisibility();
+  }
+
+  /** Hide sub-tab buttons the user turned off in Settings → Visible tabs.
+   * If the active one just got hidden, fall back to the first visible one. */
+  applyTabVisibility() {
+    const hidden = settings.hiddenWeek3Tabs || [];
+    const buttons = this.container?.querySelectorAll('.tab-btn') || [];
+    let activeStillVisible = false;
+    buttons.forEach((btn) => {
+      const isHidden = hidden.includes(btn.dataset.tab);
+      btn.hidden = isHidden;
+      if (!isHidden && btn.dataset.tab === this.activeTab) activeStillVisible = true;
+    });
+    if (!activeStillVisible) {
+      const firstVisible = [...buttons].find((b) => !b.hidden);
+      if (firstVisible) { this.activeTab = firstVisible.dataset.tab; this.switchTab(this.activeTab); }
+    }
   }
 
   setupEventListeners() {
