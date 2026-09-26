@@ -233,6 +233,38 @@ function isPanelOpen(name) {
   return p && !p.hidden;
 }
 
+/** Live text filter for the Settings panel — settings.js has grown into a
+ * long list of sections, so let people jump straight to one instead of
+ * scrolling. Only hides/shows individual .setting-row rows (and a section
+ * header once every row under it is hidden); preset buttons and hint text
+ * always stay visible. Re-applied after every rerenderSettings() since the
+ * panel is fully rebuilt from scratch on each render. */
+function applySettingsSearch(query) {
+  const host = document.getElementById('settings-body');
+  if (!host) return;
+  const q = query.trim().toLowerCase();
+  let currentHeader = null;
+  let headerHasMatch = false;
+  const finalizeHeader = () => {
+    if (currentHeader) currentHeader.classList.toggle('search-hidden', q !== '' && !headerHasMatch);
+  };
+  // querySelectorAll walks in document order regardless of nesting depth, so
+  // rows inside a sub-container (e.g. the "Visible tabs" checkbox group)
+  // are still found and filtered, not just direct children of #settings-body.
+  for (const el of host.querySelectorAll('h4.trend-title, .setting-row')) {
+    if (el.tagName === 'H4') {
+      finalizeHeader();
+      currentHeader = el;
+      headerHasMatch = false;
+      continue;
+    }
+    const match = q === '' || el.textContent.toLowerCase().includes(q);
+    el.classList.toggle('search-hidden', !match);
+    if (match) headerHasMatch = true;
+  }
+  finalizeHeader();
+}
+
 function renderPanel(name) {
   const { alerts, environment } = sources.getState();
   const user = geo.getLocation();
@@ -1228,7 +1260,8 @@ function wireChrome() {
     captureMap(mapView.map, radar, visibleAnalyses(geo.getLocation()), geo.getLocation());
   });
 
-  const rerenderSettings = () => renderSettings({
+  const rerenderSettings = () => {
+    renderSettings({
     onChanged: (path) => {
       if (path === 'favorites.add') {
         const c = mapView.map.getCenter();
@@ -1285,7 +1318,10 @@ function wireChrome() {
     onRouteCheck: (dest) => { showPanel(null); checkRoute(dest); },
     onConnectPush: async (url) => { if (await connectPush(url)) rerenderSettings(); },
     onDisconnectPush: async () => { await disconnectPush(); rerenderSettings(); },
-  });
+    });
+    applySettingsSearch(document.getElementById('settings-search')?.value || '');
+  };
+  document.getElementById('settings-search')?.addEventListener('input', (e) => applySettingsSearch(e.target.value));
 }
 
 /* ---------------- Service worker ---------------- */

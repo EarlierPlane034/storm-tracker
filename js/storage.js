@@ -101,9 +101,25 @@ function writeRaw(obj) {
   }
 }
 
-/** Deep-merge stored settings over defaults so new keys get defaults. */
+/** Deep clone of a plain JSON-safe value (everything in DEFAULT_SETTINGS is
+ * booleans/numbers/strings/plain objects/arrays, so JSON round-tripping is
+ * safe and simple). */
+function deepClone(v) {
+  return v && typeof v === 'object' ? JSON.parse(JSON.stringify(v)) : v;
+}
+
+/** Deep-merge stored settings over defaults so new keys get defaults.
+ * Always returns an object with no shared references back into `base`
+ * (DEFAULT_SETTINGS) — on a fresh install, or whenever a nested field is
+ * missing from what was saved (e.g. an older save predating a newer
+ * setting), the naive version of this used to return `base` itself, or
+ * alias one of its nested objects, straight into the live `settings`
+ * object. Every later setSetting() call then mutated DEFAULT_SETTINGS
+ * itself through that shared reference, silently corrupting the "defaults"
+ * for the rest of the session (e.g. Reset-to-defaults resetting to
+ * whatever the user's current settings already were, not the true default). */
 function merge(base, over) {
-  if (!over || typeof over !== 'object') return base;
+  if (!over || typeof over !== 'object') return deepClone(base);
   const out = Array.isArray(base) ? [...(over ?? base)] : { ...base };
   if (Array.isArray(base)) return out;
   for (const k of Object.keys(base)) {
@@ -111,6 +127,8 @@ function merge(base, over) {
       out[k] = typeof base[k] === 'object' && base[k] !== null && !Array.isArray(base[k])
         ? merge(base[k], over[k])
         : over[k];
+    } else if (typeof base[k] === 'object' && base[k] !== null) {
+      out[k] = deepClone(base[k]);
     }
   }
   return out;

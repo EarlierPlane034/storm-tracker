@@ -1,6 +1,6 @@
 /** Settings panel: units, refresh, radar, AI + notification sensitivity, favorites. */
 import { el, fmtRelTime } from '../utils.js';
-import { settings, setSetting } from '../storage.js';
+import { settings, setSetting, DEFAULT_SETTINGS } from '../storage.js';
 import { renderJournalSection } from './journal.js';
 import { getState } from '../api/sources.js';
 import { getLocation } from '../location.js';
@@ -34,6 +34,16 @@ const PRESETS = {
       voiceAlerts: true, hapticAlerts: true, soundAlerts: true, notifySensitivity: 'high-only',
       quietHours: { enabled: true, startHour: 22, endHour: 7 },
     },
+  },
+  silent: {
+    label: 'Silent Mode',
+    hint: 'No sound, voice or vibration — visual alerts only.',
+    values: { voiceAlerts: false, hapticAlerts: false, soundAlerts: false, notifySensitivity: 'high-only' },
+  },
+  weakSignal: {
+    label: 'Weak Signal',
+    hint: 'Aggressive data saving (5 min refresh) for spotty cell service.',
+    values: { dataSaver: true },
   },
 };
 
@@ -124,6 +134,23 @@ export function renderSettings({ onChanged, onRequestNotifications, onRouteCheck
 
   host.appendChild(el('div', { class: 'muted', style: 'font-size:11px;margin:0 4px 8px', text: 'Or just pick which features are turned on — same as the checkboxes below, bundled.' }));
   host.appendChild(presetButtonRow(VISIBILITY_PRESETS));
+
+  const RESET_EXCLUDE = ['favorites', 'bookmarkedStormIds', 'checklist', 'pushServerUrl', 'pushEnabled', 'firstRunDone'];
+  host.appendChild(el('button', {
+    class: 'product-btn', text: '↺ Reset all settings to defaults', style: 'margin:0 4px 14px',
+    onclick: () => {
+      if (!window.confirm('Reset every setting to its default? Your saved spots, pinned storms and chase checklist are not touched.')) return;
+      for (const [key, value] of Object.entries(DEFAULT_SETTINGS)) {
+        if (RESET_EXCLUDE.includes(key)) continue;
+        // Deep-clone so nested defaults (layers, alertsEnabled, quietHours...)
+        // never end up aliased to the live settings object.
+        setSetting(key, JSON.parse(JSON.stringify(value)));
+        onChanged(key);
+      }
+      showToast('All settings reset to defaults.');
+      onChanged('journal.refresh');
+    },
+  }));
 
   section('Units & data');
   selectRow('Distance / weather units', null, 'units', [['imperial', 'Imperial (mi, mph, °F)'], ['metric', 'Metric (km, km/h, °C)']]);
