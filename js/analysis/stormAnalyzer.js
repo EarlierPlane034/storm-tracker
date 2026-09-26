@@ -315,6 +315,15 @@ function isRoughlyLinear(cells) {
  * into the hazard scores: a detected TVS is the closest analog to a
  * confirmed hook, a strong meso on a supercell/QLCS-meso is the next-best
  * proxy, and a weaker meso is flagged as only a possible signature.
+ *
+ * The MDA mesocyclone strength rank runs 1-25 (see js/api/iem.js), and this
+ * app's own rotation-score math already treats ~12 as "maxed out"
+ * (scaleTo(cell.meso, 0, 12, 60) above) — so "likely" requires a rank
+ * clearly in that upper range, not just "present." This is deliberately a
+ * pure radar read, independent of the environment — actionGuidance() below
+ * is what decides how urgently to act on it, since a storm can show real
+ * rotation while the AI's holistic tornado score (which does weigh
+ * environment/trend) still comes out low.
  */
 function hookEchoSignature(cell, type) {
   if (cell.tvs) {
@@ -324,27 +333,32 @@ function hookEchoSignature(cell, type) {
       text: 'A Tornado Vortex Signature is present — the radar rotation proxy for a hook echo, and the strongest tornado-formation signal this app can detect.',
     };
   }
-  if (cell.meso >= 4 && (type.id === 'supercell' || type.id === 'qlcs-meso')) {
+  if (cell.meso >= 10 && (type.id === 'supercell' || type.id === 'qlcs-meso')) {
     return {
       level: 'likely',
       label: '🪝 Hook echo signature — likely',
-      text: `Strong mesocyclone (rank ${cell.meso}) on a ${type.label.toLowerCase()} — radar attributes are consistent with a hook echo.`,
+      text: `Strong mesocyclone (rank ${cell.meso}/25) on a ${type.label.toLowerCase()} — radar attributes are consistent with a hook echo.`,
     };
   }
-  if (cell.meso >= 2 && (type.id === 'supercell' || type.id === 'qlcs-meso' || type.id === 'qlcs')) {
+  if (cell.meso >= 3 && (type.id === 'supercell' || type.id === 'qlcs-meso' || type.id === 'qlcs')) {
     return {
       level: 'possible',
       label: '🪝 Possible hook echo signature',
-      text: `Mesocyclone (rank ${cell.meso}) detected — a possible hook-echo signature. Not yet strong; watch for intensifying rotation.`,
+      text: `Mesocyclone (rank ${cell.meso}/25) detected — a possible hook-echo signature. Weak-to-moderate; watch for intensifying rotation.`,
     };
   }
   return null;
 }
 
-/** Plain-language "what to do right now," tied to this storm's actual
- * detected hazards (official warnings first, then the hook-echo proxy,
- * then the general tornado-chance score) rather than just its headline
- * severity number. */
+/** Plain-language "what to do right now." Urgency is driven primarily by
+ * the AI's own holistic tornado score (ratingBand — the same elevated/high/
+ * extreme bands used everywhere else in the app), not by the hook-echo proxy
+ * alone: a strong mesocyclone with a weak/unfavorable environment can be a
+ * real radar signature without being an imminent tornado threat, and saying
+ * "reposition now" on a storm the AI itself calls a very low chance would
+ * contradict the tornado-chance readout right next to it. An observed TVS
+ * is the one exception that always gets urgent treatment on its own, since
+ * it's a directly-detected vortex, not a probability estimate. */
 function actionGuidance(hook, tornado, warnings) {
   if (warnings.some((w) => w.kind === 'tor-warning')) {
     return { tone: 'danger', text: 'Tornado Warning active — take shelter now if you are in or near this storm\'s path. Do not wait to see it.' };
@@ -352,11 +366,15 @@ function actionGuidance(hook, tornado, warnings) {
   if (hook?.level === 'confirmed') {
     return { tone: 'danger', text: 'Move to the storm\'s right-rear side immediately and identify sturdy shelter. Do not close distance on a confirmed TVS.' };
   }
-  if (hook?.level === 'likely') {
-    return { tone: 'warn', text: 'Reposition to the right-rear of the storm and keep a clear escape route open — this rotation can produce a tornado with little added warning.' };
+  const band = ratingBand(tornado.score).id;
+  if (band === 'extreme' || band === 'high') {
+    return { tone: 'danger', text: `Tornado chance is ${tornado.label.toLowerCase()} (${tornado.pct}). Reposition to the storm's right-rear side and identify shelter now.` };
   }
-  if (hook?.level === 'possible' || tornado.score >= 41) {
-    return { tone: 'warn', text: 'Tornado chance is elevated. Keep watching for strengthening rotation and know your escape route.' };
+  if (band === 'elev') {
+    return { tone: 'warn', text: `Tornado chance is elevated (${tornado.pct}). Keep a clear escape route open and watch for strengthening rotation.` };
+  }
+  if (hook) {
+    return { tone: 'ok', text: `Rotation is present (a ${hook.level === 'likely' ? 'fairly strong' : 'weak-to-moderate'} mesocyclone), but the AI's overall tornado chance is still ${tornado.label.toLowerCase()} (${tornado.pct}) — the environment doesn't currently support it. Keep watching; no need to reposition yet.` };
   }
   return { tone: 'ok', text: 'No significant rotation signature right now — standard situational awareness is enough.' };
 }

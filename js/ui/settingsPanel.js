@@ -37,6 +37,27 @@ const PRESETS = {
   },
 };
 
+// One-tap bundles of *which tabs are visible* — same idea as PRESETS above,
+// but for decluttering the tab bar down to just what a given use case needs
+// instead of toggling each "Visible tabs" checkbox by hand.
+const VISIBILITY_PRESETS = {
+  essentials: {
+    label: 'Essentials Only',
+    hint: 'Just Radar, Storms and Alerts — everything else hidden.',
+    values: { hiddenTabs: ['reports', 'analysis', 'week3', 'ai', 'features'] },
+  },
+  research: {
+    label: 'Storm Research',
+    hint: 'Adds Analysis and Week 3\'s deep-dive tools; AI chat and Features stay hidden.',
+    values: { hiddenTabs: ['reports', 'ai', 'features'] },
+  },
+  everything: {
+    label: 'Everything On',
+    hint: 'Show every tab and tool.',
+    values: { hiddenTabs: [], hiddenWeek3Tabs: [] },
+  },
+};
+
 export function renderSettings({ onChanged, onRequestNotifications, onRouteCheck, onConnectPush, onDisconnectPush }) {
   const host = document.getElementById('settings-body');
   host.textContent = '';
@@ -76,25 +97,33 @@ export function renderSettings({ onChanged, onRequestNotifications, onRouteCheck
     ]));
   };
 
+  const applyPreset = (preset) => {
+    for (const [path, value] of Object.entries(preset.values)) {
+      setSetting(path, value);
+      onChanged(path);
+    }
+    showToast(`Applied “${preset.label}” preset.`);
+    onChanged('journal.refresh'); // redraw settings to reflect the new values
+  };
+  const presetButtonRow = (presets) => {
+    const row = el('div', { style: 'display:flex;flex-wrap:wrap;gap:8px;margin:0 4px 12px' });
+    for (const preset of Object.values(presets)) {
+      row.appendChild(el('button', {
+        class: 'product-btn',
+        text: preset.label,
+        title: preset.hint,
+        onclick: () => applyPreset(preset),
+      }));
+    }
+    return row;
+  };
+
   section('Quick presets');
   host.appendChild(el('div', { class: 'muted', style: 'font-size:11px;margin:0 4px 8px', text: 'One tap to bundle the settings below for how you\'re using the app right now.' }));
-  const presetRow = el('div', { style: 'display:flex;flex-wrap:wrap;gap:8px;margin:0 4px 12px' });
-  for (const [key, preset] of Object.entries(PRESETS)) {
-    presetRow.appendChild(el('button', {
-      class: 'product-btn',
-      text: preset.label,
-      title: preset.hint,
-      onclick: () => {
-        for (const [path, value] of Object.entries(preset.values)) {
-          setSetting(path, value);
-          onChanged(path);
-        }
-        showToast(`Applied “${preset.label}” preset.`);
-        onChanged('journal.refresh'); // redraw settings to reflect the new values
-      },
-    }));
-  }
-  host.appendChild(presetRow);
+  host.appendChild(presetButtonRow(PRESETS));
+
+  host.appendChild(el('div', { class: 'muted', style: 'font-size:11px;margin:0 4px 8px', text: 'Or just pick which features are turned on — same as the checkboxes below, bundled.' }));
+  host.appendChild(presetButtonRow(VISIBILITY_PRESETS));
 
   section('Units & data');
   selectRow('Distance / weather units', null, 'units', [['imperial', 'Imperial (mi, mph, °F)'], ['metric', 'Metric (km, km/h, °C)']]);

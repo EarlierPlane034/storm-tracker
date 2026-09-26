@@ -282,7 +282,8 @@ export function openStormSheet(a) {
   ]));
   body.appendChild(el('div', { class: 'muted', style: 'margin:4px 0 8px', text: a.type.desc }));
   if (a.hookEcho) {
-    body.appendChild(el('div', { class: `hud-${a.hookEcho.level === 'confirmed' ? 'danger' : 'warn'}`, style: 'margin-bottom:6px', text: a.hookEcho.text }));
+    const hookTone = a.hookEcho.level === 'confirmed' ? 'danger' : a.hookEcho.level === 'likely' ? 'warn' : 'ok';
+    body.appendChild(el('div', { class: `hud-${hookTone}`, style: 'margin-bottom:6px', text: a.hookEcho.text }));
   }
   if (a.action) {
     body.appendChild(el('div', { class: `hud-${a.action.tone}`, style: 'margin-bottom:8px', text: `👉 What to do: ${a.action.text}` }));
@@ -335,6 +336,7 @@ export function openStormSheet(a) {
     el('div', { class: 'k', text: k }), el('div', { class: 'v', text: v ?? '—' }),
   ]));
   add('Movement', motionText(c));
+  add('Coming from', motionFromText(c));
   add('Distance', a.userRel ? fmtDistance(a.userRel.distKm, settings.units) : 'no GPS');
   add('Arrival', a.userRel?.etaMin != null ? `~${a.userRel.etaMin} min` : 'not toward you');
   add('Max dBZ', c.maxDbz != null ? `${c.maxDbz}` : null);
@@ -343,7 +345,7 @@ export function openStormSheet(a) {
   add('VIL', c.vil != null ? `${c.vil} kg/m²` : null);
   add('Hail est.', c.maxHailIn != null ? fmtHailSize(c.maxHailIn, settings.units) : null);
   add('POSH', c.posh != null ? `${c.posh}%` : null);
-  add('Rotation', c.tvs ? 'TVS!' : c.meso > 0 ? `meso r${c.meso}` : 'none');
+  add('Rotation', c.tvs ? 'TVS!' : c.meso > 0 ? `meso rank ${c.meso}/25` : 'none');
   add('Persistence', `${a.persistence} scans`);
   add('Severe chance', `${a.severeScore}%-ile`);
   add('Lifecycle', LIFECYCLE_LABEL[a.lifecycle] || a.lifecycle);
@@ -352,6 +354,10 @@ export function openStormSheet(a) {
     add('⚡ Alert', 'Rapidly intensifying');
   }
   body.appendChild(stats);
+  body.appendChild(el('div', {
+    class: 'muted', style: 'font-size:10px;margin-top:6px',
+    text: `Radar attributes: NEXRAD site ${c.site || '?'} via Iowa Environmental Mesonet · environment: Open-Meteo model blend · warnings: NWS (api.weather.gov). AI scoring below is an unofficial estimate.`,
+  }));
 
   // Active warnings on this storm.
   if (a.warnings.length) {
@@ -436,9 +442,21 @@ export function buildTornadoMeter(a) {
   return wrap;
 }
 
+// "moveDirDeg" is the storm's heading (the direction it's travelling TOWARD),
+// matching standard NWS/aviation storm-motion convention — the same
+// convention this app already relies on internally (e.g. etaMinutes()'s
+// bearing-to-user comparison). Spelling out "toward" avoids it being misread
+// as a wind-style "from" direction, which uses the opposite convention.
 function motionText(c) {
   if (c.moveDirDeg == null || c.moveSpeedKts == null) return 'motion unknown';
-  return `${compassDir(c.moveDirDeg)} @ ${fmtSpeed(c.moveSpeedKts, settings.units)}`;
+  return `Toward ${compassDir(c.moveDirDeg)} @ ${fmtSpeed(c.moveSpeedKts, settings.units)}`;
+}
+
+/** The direction the storm is travelling FROM — the opposite of its
+ * heading. Shown alongside "Movement" so it's unambiguous which is which. */
+function motionFromText(c) {
+  if (c.moveDirDeg == null) return null;
+  return compassDir((c.moveDirDeg + 180) % 360);
 }
 
 /** Share a storm summary via the system share sheet (clipboard fallback). */
