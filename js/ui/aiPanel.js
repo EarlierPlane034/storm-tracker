@@ -3,7 +3,7 @@
  * discussion, ranked storm threats with reasoning, and the standing
  * "not an official product" disclaimer.
  */
-import { el, fmtDistance } from '../utils.js';
+import { el, fmtDistance, haversineKm } from '../utils.js';
 import { settings } from '../storage.js';
 import { CONFIG } from '../config.js';
 import { stormSummary, tornadoStatement, changeExplanation } from '../analysis/narrative.js';
@@ -221,9 +221,7 @@ function buildPlannerCard(day2, day3, user, onShowTarget) {
   for (const t of targets) {
     const when = new Date(Date.now() + (t.dayNum - 1) * 86400e3)
       .toLocaleDateString([], { weekday: 'long' });
-    const dist = user ? ` — ${fmtDistance(
-      Math.hypot((t.lat - user.lat) * 111, (t.lon - user.lon) * 111 * Math.cos(user.lat * Math.PI / 180)),
-      settings.units)} from you` : '';
+    const dist = user ? ` — ${fmtDistance(haversineKm(user.lat, user.lon, t.lat, t.lon), settings.units)} from you` : '';
     card.appendChild(el('div', { class: 'setting-row', style: 'padding:8px 0' }, [
       el('label', { html: `<strong>${when}</strong>: ${t.cat} risk centered near ${t.lat.toFixed(1)}, ${t.lon.toFixed(1)}${dist}` }),
       onShowTarget ? el('button', {

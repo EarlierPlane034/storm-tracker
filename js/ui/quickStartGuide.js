@@ -51,7 +51,7 @@ export function showQuickStartGuide() {
             <li>✅ Use the Analysis tab for environmental data & hodographs</li>
             <li>✅ Week 3 features unlock AI predictions & chase safety tools</li>
             <li>✅ Tap Features tab to see everything available</li>
-            <li>✅ Chase Mode (Settings) keeps your screen on during the day</li>
+            <li>✅ Chase Mode (Settings) keeps your screen from locking while it's on</li>
           </ul>
         </div>
 
