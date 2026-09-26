@@ -34,7 +34,7 @@ function renderHazardMatrix(analyses, onSelect) {
   const table = el('table', { class: 'hazard-matrix' });
   table.appendChild(el('thead', {}, [
     el('tr', {}, [
-      'Storm', 'Dist', 'Score', 'TOR%', 'Hail', 'Wind', 'LTG',
+      'Storm', 'Dist', 'Score', 'TOR%', 'Hail', 'Wind', 'LTG', 'Hook',
     ].map((h) => el('th', { text: h }))),
   ]));
   const tbody = el('tbody');
@@ -51,6 +51,9 @@ function renderHazardMatrix(analyses, onSelect) {
     tr.appendChild(el('td', { text: c.maxHailIn != null ? fmtHailSize(c.maxHailIn, settings.units) : '—' }));
     tr.appendChild(el('td', { text: `${a.scores.wind}` }));
     tr.appendChild(el('td', { text: `${a.scores.lightning}` }));
+    tr.appendChild(el('td', {
+      html: a.hookEcho ? `<span class="hook-chip ${a.hookEcho.level}" style="margin:0">🪝 ${a.hookEcho.level}</span>` : '—',
+    }));
     tbody.appendChild(tr);
   }
   table.appendChild(tbody);
@@ -78,6 +81,8 @@ function exportStormsJson(analyses) {
     moveDirDeg: a.cell.moveDirDeg ?? null,
     moveSpeedKts: a.cell.moveSpeedKts ?? null,
     distanceKm: a.userRel ? a.userRel.distKm : null,
+    hookEchoSignature: a.hookEcho ? a.hookEcho.level : null,
+    whatToDo: a.action ? a.action.text : null,
   }));
   const payload = { exportedAt: new Date().toISOString(), units: 'metric (raw values; km/kt/inches as noted)', storms: rows };
   downloadFile(JSON.stringify(payload, null, 2), `stormlens-storms-${Date.now()}.json`, 'application/json');
@@ -201,6 +206,10 @@ export function renderStormList(analyses, { onSelect, hiddenCount = 0 }) {
     }
     card.appendChild(risks);
 
+    if (a.hookEcho) {
+      card.appendChild(el('span', { class: `hook-chip ${a.hookEcho.level}`, text: a.hookEcho.label }));
+    }
+
     // One-line "why it's ranked here".
     if (a.factors.length) {
       card.appendChild(el('div', { class: 'muted', style: 'margin-top:6px', text: `Why: ${a.factors[0].text}.` }));
@@ -272,6 +281,12 @@ export function openStormSheet(a) {
     ]),
   ]));
   body.appendChild(el('div', { class: 'muted', style: 'margin:4px 0 8px', text: a.type.desc }));
+  if (a.hookEcho) {
+    body.appendChild(el('div', { class: `hud-${a.hookEcho.level === 'confirmed' ? 'danger' : 'warn'}`, style: 'margin-bottom:6px', text: a.hookEcho.text }));
+  }
+  if (a.action) {
+    body.appendChild(el('div', { class: `hud-${a.action.tone}`, style: 'margin-bottom:8px', text: `👉 What to do: ${a.action.text}` }));
+  }
   const abandon = abandonmentSuggestion(a);
   if (abandon) {
     body.appendChild(el('div', { class: 'hud-warn', style: 'margin-bottom:8px', text: `🔄 ${abandon}` }));

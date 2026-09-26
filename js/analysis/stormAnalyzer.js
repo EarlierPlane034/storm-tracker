@@ -194,6 +194,10 @@ function analyzeCell(cell, env, alerts, reports, user, allCells) {
     cell, env, rotation, persistence, trend, warnings, type, factors, sens,
   });
 
+  // ---------- Hook-echo proxy + what-to-do guidance -----------------------------
+  const hookEcho = hookEchoSignature(cell, type);
+  const action = actionGuidance(hookEcho, tornado, warnings);
+
   // ---------- Severe score (headline 0–100) --------------------------------------
   let severe =
     0.30 * Math.max(tornado.score, rotation) +
@@ -227,6 +231,7 @@ function analyzeCell(cell, env, alerts, reports, user, allCells) {
 
   return {
     cell, type, warnings, trend, persistence,
+    hookEcho, action,
     rapidIntensification,
     lifecycle: lifecycleStage(cell.id, trend),
     severeScore: severe,
@@ -300,6 +305,60 @@ function isRoughlyLinear(cells) {
   const minor = (trace - disc) / 2;
   const major = (trace + disc) / 2;
   return major > 0 && minor / major < 0.15;
+}
+
+/**
+ * Proxy for a hook echo — the classic radar shape marking where a
+ * mesocyclone (and possible tornado) sits on a storm. True shape detection
+ * needs gridded reflectivity imagery this app doesn't have, so this uses the
+ * same attribute-level rotation data (TVS / mesocyclone rank) already fused
+ * into the hazard scores: a detected TVS is the closest analog to a
+ * confirmed hook, a strong meso on a supercell/QLCS-meso is the next-best
+ * proxy, and a weaker meso is flagged as only a possible signature.
+ */
+function hookEchoSignature(cell, type) {
+  if (cell.tvs) {
+    return {
+      level: 'confirmed',
+      label: '🪝 Hook echo signature — TVS',
+      text: 'A Tornado Vortex Signature is present — the radar rotation proxy for a hook echo, and the strongest tornado-formation signal this app can detect.',
+    };
+  }
+  if (cell.meso >= 4 && (type.id === 'supercell' || type.id === 'qlcs-meso')) {
+    return {
+      level: 'likely',
+      label: '🪝 Hook echo signature — likely',
+      text: `Strong mesocyclone (rank ${cell.meso}) on a ${type.label.toLowerCase()} — radar attributes are consistent with a hook echo.`,
+    };
+  }
+  if (cell.meso >= 2 && (type.id === 'supercell' || type.id === 'qlcs-meso' || type.id === 'qlcs')) {
+    return {
+      level: 'possible',
+      label: '🪝 Possible hook echo signature',
+      text: `Mesocyclone (rank ${cell.meso}) detected — a possible hook-echo signature. Not yet strong; watch for intensifying rotation.`,
+    };
+  }
+  return null;
+}
+
+/** Plain-language "what to do right now," tied to this storm's actual
+ * detected hazards (official warnings first, then the hook-echo proxy,
+ * then the general tornado-chance score) rather than just its headline
+ * severity number. */
+function actionGuidance(hook, tornado, warnings) {
+  if (warnings.some((w) => w.kind === 'tor-warning')) {
+    return { tone: 'danger', text: 'Tornado Warning active — take shelter now if you are in or near this storm\'s path. Do not wait to see it.' };
+  }
+  if (hook?.level === 'confirmed') {
+    return { tone: 'danger', text: 'Move to the storm\'s right-rear side immediately and identify sturdy shelter. Do not close distance on a confirmed TVS.' };
+  }
+  if (hook?.level === 'likely') {
+    return { tone: 'warn', text: 'Reposition to the right-rear of the storm and keep a clear escape route open — this rotation can produce a tornado with little added warning.' };
+  }
+  if (hook?.level === 'possible' || tornado.score >= 41) {
+    return { tone: 'warn', text: 'Tornado chance is elevated. Keep watching for strengthening rotation and know your escape route.' };
+  }
+  return { tone: 'ok', text: 'No significant rotation signature right now — standard situational awareness is enough.' };
 }
 
 function computeConfidence(cell, env, historyLen) {
