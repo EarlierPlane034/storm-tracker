@@ -99,11 +99,13 @@ export function stormTrend(cellId) {
   return { label, dbzSlope, vilSlope, mesoSlope, composite };
 }
 
-/** Rapid intensification = strong composite slope sustained over >=3 samples. */
-export function isRapidlyIntensifying(cellId) {
+/** Rapid intensification = strong composite slope sustained over >=3 samples.
+ * Pass `precomputedTrend` (the result of an already-called stormTrend(cellId))
+ * to skip recomputing the same regression slopes a second time. */
+export function isRapidlyIntensifying(cellId, precomputedTrend) {
   const arr = getHistory(cellId);
   if (arr.length < 3) return false;
-  const t = stormTrend(cellId);
+  const t = precomputedTrend ?? stormTrend(cellId);
   return t.composite > 1.2;
 }
 

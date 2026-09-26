@@ -103,20 +103,24 @@ async function refreshObservations() {
   catch (err) { console.warn('[sources] obs refresh failed', err); }
 }
 
+// Skip a poll's network + reanalyze work while the tab/app is backgrounded;
+// visibilitychange -> refreshAll() (below) catches everything up on return.
+const whenVisible = (fn) => () => { if (document.visibilityState === 'visible') fn(); };
+
 /** (Re)create the polling intervals using the current refresh-rate setting. */
 function startTimers() {
   timers.forEach(clearInterval);
   timers.length = 0;
 
   const base = Math.max(30, settings.refreshIntervalSec) * 1000;
-  timers.push(setInterval(refreshCells, Math.max(base, CONFIG.refresh.cellsMs)));
-  timers.push(setInterval(refreshAlerts, base));
-  timers.push(setInterval(refreshReports, CONFIG.refresh.reportsMs));
-  timers.push(setInterval(refreshOutlook, CONFIG.refresh.environmentMs));
-  timers.push(setInterval(refreshEnvironment, CONFIG.refresh.environmentMs));
-  timers.push(setInterval(refreshObservations, CONFIG.refresh.reportsMs));
-  timers.push(setInterval(refreshWeek, 3 * 3600_000));
-  timers.push(setInterval(refreshForecast, 1800_000));
+  timers.push(setInterval(whenVisible(refreshCells), Math.max(base, CONFIG.refresh.cellsMs)));
+  timers.push(setInterval(whenVisible(refreshAlerts), base));
+  timers.push(setInterval(whenVisible(refreshReports), CONFIG.refresh.reportsMs));
+  timers.push(setInterval(whenVisible(refreshOutlook), CONFIG.refresh.environmentMs));
+  timers.push(setInterval(whenVisible(refreshEnvironment), CONFIG.refresh.environmentMs));
+  timers.push(setInterval(whenVisible(refreshObservations), CONFIG.refresh.reportsMs));
+  timers.push(setInterval(whenVisible(refreshWeek), 3 * 3600_000));
+  timers.push(setInterval(whenVisible(refreshForecast), 1800_000));
 }
 
 /** Kick everything off and start the refresh clocks. */

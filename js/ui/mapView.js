@@ -486,6 +486,7 @@ export class MapView {
    * @param {Array} analyses sorted analyses from stormAnalyzer
    */
   renderCells(analyses) {
+    const _renderStart = performance.now();
     this.groups.cells.clearLayers();
     this.groups.stormTracks.clearLayers();
     this.cellMarkers = []; // kept for time-matched loop playback
@@ -518,6 +519,12 @@ export class MapView {
 
     // Render mesocyclones for all storms
     renderMesocyclones(analyses, this.map);
+
+    // Real render-cost numbers for the Analysis > Performance sub-tab
+    // (previously showed fabricated always-zero metrics from an unwired
+    // RenderOptimizer that never actually measured anything).
+    this.lastRenderMs = Math.round(performance.now() - _renderStart);
+    this.lastRenderCount = list.length;
   }
 
   /** Group cells within `radiusPx` screen pixels of each other (O(n²) but

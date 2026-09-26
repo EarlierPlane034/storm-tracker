@@ -29,8 +29,14 @@ export class StormMetricsAnimation {
   /**
    * Render animated metrics with trend lines
    */
+  stop() {
+    if (this.animationId) cancelAnimationFrame(this.animationId);
+    this.animationId = null;
+  }
+
   renderMetrics(trends, duration = 2000) {
     if (!this.ctx || !trends) return;
+    this.stop(); // a re-render while a previous animation is still playing shouldn't stack loops
 
     let startTime = Date.now();
     const animate = () => {

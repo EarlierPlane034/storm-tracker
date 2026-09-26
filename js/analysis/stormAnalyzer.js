@@ -208,7 +208,8 @@ function analyzeCell(cell, env, alerts, reports, user, allCells) {
     severe = Math.max(severe, 55);
     factors.push({ hazard: 'general', weight: 20, text: 'the NWS has an active Severe Thunderstorm Warning on this storm' });
   }
-  if (isRapidlyIntensifying(cell.id)) {
+  const rapidIntensification = isRapidlyIntensifying(cell.id, trend);
+  if (rapidIntensification) {
     severe = clamp(severe + 8, 0, 100);
     factors.push({ hazard: 'general', weight: 12, text: 'the storm is rapidly intensifying (reflectivity, VIL and rotation all climbing quickly)' });
   }
@@ -222,15 +223,11 @@ function analyzeCell(cell, env, alerts, reports, user, allCells) {
   const confidence = computeConfidence(cell, env, getHistory(cell.id).length);
 
   // ---------- User-relative geometry -------------------------------------------
-  let userRel = null;
-  if (user) {
-    const distKm = haversineKm(user.lat, user.lon, cell.lat, cell.lon);
-    userRel = { distKm, etaMin: etaMinutes(cell, user, distKm) };
-  }
+  const userRel = computeUserRel(cell, user);
 
   return {
     cell, type, warnings, trend, persistence,
-    rapidIntensification: isRapidlyIntensifying(cell.id),
+    rapidIntensification,
     lifecycle: lifecycleStage(cell.id, trend),
     severeScore: severe,
     scores: { rotation: Math.round(rotation), hail: Math.round(hail), wind: Math.round(wind), flood: Math.round(flood), lightning: Math.round(lightning), organization: Math.round(organization) },
@@ -316,6 +313,15 @@ function computeConfidence(cell, env, historyLen) {
   return 'Low';
 }
 
+/** Distance/ETA from the user to a storm - the only per-cell fields that
+ * change on a GPS-only update, so app.js's lightweight location-tick path
+ * can recompute just this without rerunning the full analysis pass. */
+export function computeUserRel(cell, user) {
+  if (!user) return null;
+  const distKm = haversineKm(user.lat, user.lon, cell.lat, cell.lon);
+  return { distKm, etaMin: etaMinutes(cell, user, distKm) };
+}
+
 /** Minutes until the storm reaches the user's location (null if moving away). */
 function etaMinutes(cell, user, distKm) {
   if (cell.moveDirDeg == null || !cell.moveSpeedKts) return null;
@@ -340,8 +346,37 @@ export function ratingBand(score) {
   return { id: 'verylow', label: 'Very Low' };
 }
 
+/** Cheap lat/lon bounding box for an alert's polygon, cached on the alert
+ * object itself so it's computed once (not once per cell) and reused across
+ * every cell-vs-alert check this cycle and every cycle until the alert feed
+ * refreshes. Large county-aggregated watch polygons can have thousands of
+ * vertices, so skipping the full ray-cast for obviously-far-away pairs matters
+ * a lot once you multiply it by every storm cell on a busy day. */
+function alertBBox(alert) {
+  if (alert._bbox) return alert._bbox;
+  const geom = alert.geometry;
+  const polys = geom.type === 'Polygon' ? [geom.coordinates]
+    : geom.type === 'MultiPolygon' ? geom.coordinates : [];
+  let minLat = Infinity, maxLat = -Infinity, minLon = Infinity, maxLon = -Infinity;
+  for (const poly of polys) {
+    for (const [lon, lat] of (poly[0] || [])) {
+      if (lat < minLat) minLat = lat;
+      if (lat > maxLat) maxLat = lat;
+      if (lon < minLon) minLon = lon;
+      if (lon > maxLon) maxLon = lon;
+    }
+  }
+  alert._bbox = { minLat, maxLat, minLon, maxLon };
+  return alert._bbox;
+}
+
 function warningsContaining(cell, alerts) {
-  return alerts.filter((a) => a.geometry && pointInGeometry(cell.lat, cell.lon, a.geometry));
+  return alerts.filter((a) => {
+    if (!a.geometry) return false;
+    const box = alertBBox(a);
+    if (cell.lat < box.minLat || cell.lat > box.maxLat || cell.lon < box.minLon || cell.lon > box.maxLon) return false;
+    return pointInGeometry(cell.lat, cell.lon, a.geometry);
+  });
 }
 
 /** Point-in-polygon for GeoJSON Polygon/MultiPolygon (ray casting). */

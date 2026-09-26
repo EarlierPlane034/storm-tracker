@@ -9,7 +9,7 @@ import { onFeedHealth, getLastSuccessAt } from './api/client.js';
 import * as sources from './api/sources.js';
 import { RadarController } from './radar/radarController.js';
 import { MapView } from './ui/mapView.js';
-import { analyzeStorms } from './analysis/stormAnalyzer.js';
+import { analyzeStorms, computeUserRel } from './analysis/stormAnalyzer.js';
 import { rememberAnalysis, pruneNarrative, tickerHeadline } from './analysis/narrative.js';
 import { renderStormList, openStormSheet, initStormSheet, configureStormSheet } from './ui/stormPanel.js';
 import { renderAlerts } from './ui/alertsPanel.js';
@@ -84,7 +84,7 @@ async function main() {
   // Initialize advanced analysis panel (Week 2)
   const analysisPanelContainer = document.getElementById('analysis-panel');
   if (analysisPanelContainer) {
-    advancedPanel = new AdvancedAnalysisPanel('analysis-panel', mapView.map);
+    advancedPanel = new AdvancedAnalysisPanel('analysis-panel', mapView.map, mapView);
   }
 
   // Initialize Week 3 features panel
@@ -136,7 +136,7 @@ async function main() {
     }
   };
   pollCommunity();
-  setInterval(pollCommunity, 120_000);
+  setInterval(() => { if (document.visibilityState === 'visible') pollCommunity(); }, 120_000);
   sources.subscribe('outlook', (features) => mapView.renderOutlook(features));
   sources.subscribe('obs', (obs) => mapView.renderObservations(obs));
   sources.subscribe('environment', reanalyze);
@@ -155,7 +155,9 @@ async function main() {
     if (settings.followMe) mapView.map.panTo([loc.lat, loc.lon]);
     if (settings.chaseMode) recordTrackPoint(loc); // chase-day breadcrumb
     syncPush(); // keep the push worker's copy of our location fresh
-    reanalyze();
+    // Once there's an initial analysis to update, a GPS-only move only needs
+    // the lightweight distance/ETA refresh, not a full storm-data reanalysis.
+    if (analyses.length) updateUserRelative(loc); else reanalyze();
   });
   document.getElementById('btn-help').addEventListener('click', showQuickStartGuide);
   document.getElementById('btn-locate').addEventListener('click', () => {
@@ -343,6 +345,23 @@ const reanalyze = debounce(() => {
 
   // Remember AFTER alerting so change explanations compare to the last pass.
   analyses.forEach(rememberAnalysis);
+}, 400);
+
+/** A GPS fix moved but the storm data itself hasn't changed - recompute just
+ * the user-relative distance/ETA on the existing analyses instead of rerunning
+ * the full (O(n²)-ish) analyzeStorms() pass. Map markers don't depend on the
+ * user's position, so only what actually reads userRel needs a repaint: the
+ * onlyNearby filter, range rings, intercept guidance and the chase/HUD text. */
+const updateUserRelative = debounce((user) => {
+  for (const a of analyses) a.userRel = computeUserRel(a.cell, user);
+  mapView.renderCells(visibleAnalyses(user));
+  updateInterceptGuidance(user);
+  markPanelsStale(['storms', 'ai']);
+  if (!document.getElementById('glance').hidden) updateGlance();
+  updateChaseHud(user);
+  updateTicker(user);
+  updateGpsChip(user);
+  evaluateStorms(analyses, user);
 }, 400);
 
 /** Map layer for reports (always current) — list renders only when open. */

@@ -9,13 +9,14 @@ import { HodographView, calculateSRH, calculateShear } from './hodographView.js'
 import { EnvironmentalOverlay, formatEnvironment, calculateERV } from './environmentalOverlay.js';
 import { getStormTrends, predictStormMovement, calculateGrowthRate } from '../analysis/stormTrendAnalysis.js';
 import { StormMetricsAnimation, HailScatterPlot, TornadoRiskMap, renderLeaderboard } from './dataVisualizations.js';
-import { RenderOptimizer, MobileOptimizer } from './renderOptimization.js';
+import { MobileOptimizer } from './renderOptimization.js';
 import { debounce } from '../utils.js';
 
 export class AdvancedAnalysisPanel {
-  constructor(containerId, map) {
+  constructor(containerId, map, mapView) {
     this.container = document.getElementById(containerId);
     this.map = map;
+    this.mapView = mapView;
     this.activeTab = 'overview';
     this.selectedStorm = null;
 
@@ -24,7 +25,6 @@ export class AdvancedAnalysisPanel {
     this.metricsAnimation = null;
     this.hailScatter = null;
     this.tornadoRiskMap = null;
-    this.renderOptimizer = new RenderOptimizer(map);
     this.mobileOptimizer = new MobileOptimizer(window.innerHeight > window.innerWidth);
 
     this.initialize();
@@ -249,18 +249,18 @@ export class AdvancedAnalysisPanel {
       return;
     }
 
+    // content.innerHTML is rebuilt below on every call, which detaches
+    // whatever canvas any previous instance was drawing to - stop that
+    // animation loop and build fresh instances against the new container.
+    this.metricsAnimation?.stop();
     content.innerHTML = '<div id="metrics-container"></div><div id="hail-scatter"></div>';
 
-    if (!this.metricsAnimation) {
-      this.metricsAnimation = new StormMetricsAnimation('metrics-container');
-      this.metricsAnimation.initialize();
-    }
+    this.metricsAnimation = new StormMetricsAnimation('metrics-container');
+    this.metricsAnimation.initialize();
     this.metricsAnimation.renderMetrics(trends);
 
-    if (!this.hailScatter) {
-      this.hailScatter = new HailScatterPlot('hail-scatter');
-      this.hailScatter.initialize();
-    }
+    this.hailScatter = new HailScatterPlot('hail-scatter');
+    this.hailScatter.initialize();
   }
 
   renderRanking(content) {
@@ -269,22 +269,23 @@ export class AdvancedAnalysisPanel {
   }
 
   renderPerformance(content) {
-    const metrics = this.renderOptimizer.getMetrics();
+    // Real numbers from the map's last actual marker/track render pass
+    // (mapView.renderCells), not a simulated/never-updated placeholder.
+    const renderTimeMs = this.mapView?.lastRenderMs ?? 0;
+    const stormsRendered = this.mapView?.lastRenderCount ?? 0;
+    const isOptimal = renderTimeMs <= 50;
 
     content.innerHTML = `
       <div class="performance-content">
         <div class="perf-metric">
-          <span>FPS:</span> <strong>${metrics.fps}</strong>
+          <span>Last Render Time:</span> <strong>${renderTimeMs}ms</strong>
         </div>
         <div class="perf-metric">
-          <span>Render Time:</span> <strong>${metrics.renderTimeMs}ms</strong>
+          <span>Storms Rendered:</span> <strong>${stormsRendered}</strong>
         </div>
         <div class="perf-metric">
-          <span>Storms Rendered:</span> <strong>${metrics.stormsRendered}</strong>
-        </div>
-        <div class="perf-metric">
-          <span>Status:</span> <strong style="color: ${metrics.isOptimal ? '#34d399' : '#ef4444'}">
-            ${metrics.isOptimal ? '✓ Optimal' : '⚠ Degraded'}
+          <span>Status:</span> <strong style="color: ${isOptimal ? '#34d399' : '#ef4444'}">
+            ${isOptimal ? '✓ Optimal' : '⚠ Degraded'}
           </strong>
         </div>
         <label style="display: flex; align-items: center; gap: 8px; margin-top: 10px;">
