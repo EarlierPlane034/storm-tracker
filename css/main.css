@@ -78,6 +78,18 @@ body.simple-mode .product-btn, body.simple-mode .card-icon-btn, body.simple-mode
   min-height: 40px;
   font-size: 15px;
 }
+/* RadarScope-style map screen: a big clean map with the fewest possible
+   controls in front of it — advanced/secondary chrome (site picker, the
+   extra-products expander) hidden, the one thing that matters (is there a
+   warning / could a tornado happen) made bigger, not smaller. */
+body.simple-mode #site-chip,
+body.simple-mode #rail-more-btn {
+  display: none;
+}
+body.simple-mode .threat-chip {
+  font-size: 15px;
+  padding: 9px 16px;
+}
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -389,10 +401,13 @@ canvas[style*="background: black"] {
 }
 .gps-chip strong { color: var(--warn); }
 
-/* Tornado risk at a glance — the single most important "should I worry"
-   readout, so it sits as its own always-visible chip rather than folded
-   into GPS proximity text or buried behind a tab tap. */
-.tor-risk-chip {
+/* Threat at a glance — the single most important "should I worry" readout,
+   so it sits as its own always-visible chip rather than folded into GPS
+   proximity text or buried behind a tab tap. Prioritizes an active official
+   NWS warning (a certainty) over the AI tornado-chance estimate (a guess),
+   with a color/urgency scale to match: calm default -> AI estimate ->
+   severe/flood warning -> tornado warning (pulsing, unmissable). */
+.threat-chip {
   position: absolute;
   left: 10px;
   top: 44px;
@@ -409,12 +424,35 @@ canvas[style*="background: black"] {
   z-index: 1000;
   cursor: pointer;
 }
-.tor-risk-chip[hidden] {
+.threat-chip[hidden] {
   display: none !important;
   visibility: hidden !important;
   pointer-events: none !important;
   position: absolute !important;
   opacity: 0 !important;
+}
+.threat-chip.threat-svr {
+  background: rgba(251, 146, 60, 0.22);
+  border-color: var(--warn);
+  color: #fff7ed;
+}
+.threat-chip.threat-ffw {
+  background: rgba(56, 189, 248, 0.2);
+  border-color: var(--accent);
+  color: #f0f9ff;
+}
+.threat-chip.threat-tor {
+  background: rgba(239, 68, 68, 0.28);
+  border-color: var(--tor);
+  color: #fff;
+  animation: threat-tor-pulse 1.4s ease-in-out infinite;
+}
+@keyframes threat-tor-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.55); }
+  50% { box-shadow: 0 0 0 6px rgba(239, 68, 68, 0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .threat-chip.threat-tor { animation: none; }
 }
 
 /* ---------- Bottom tab bar ---------- */

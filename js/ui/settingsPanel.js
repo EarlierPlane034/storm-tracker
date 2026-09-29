@@ -268,6 +268,7 @@ export function renderSettings({ onChanged, onRequestNotifications, onRouteCheck
   selectRow('Animation speed', null, 'animFps', [[1, 'Slow (1 fps)'], [2, '2 fps'], [4, 'Normal (4 fps)'], [6, '6 fps'], [8, 'Fast (8 fps)']]);
   selectRow('Color table', null, 'colorTable', [['classic', 'Classic'], ['enhanced', 'Enhanced contrast'], ['grayscale', 'Grayscale']]);
   toggleRow('Radar smoothing', 'Softens pixel edges', 'radarSmoothing');
+  toggleRow('🧪 Experimental: declutter REF', 'Fades likely ground-clutter/AP haze on single-site Base Reflectivity by texture (flat, uniform patches) — a guess, not real filtering, so it can occasionally fade genuinely light, uniform rain too. Off by default.', 'declutterHeuristic');
 
   // Roadmap #100: one clearly-labeled home for every readability/sensory
   // setting, instead of the visual ones being buried under "Radar" (where

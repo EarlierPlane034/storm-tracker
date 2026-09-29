@@ -15,6 +15,7 @@ export const DEFAULT_SETTINGS = {
   animFps: 4,                   // radar loop frames per second
   radarOpacity: CONFIG.radar.defaultOpacity,
   radarSmoothing: true,         // CSS-level smoothing of radar tiles
+  declutterHeuristic: false,    // experimental: fade likely ground-clutter/AP haze on single-site REF (texture guess, not real dual-pol filtering)
   nightMode: false,             // dim red theme for night driving
   colorblindMode: false,        // blue/yellow/orange severity palette instead of red/green
   largeText: false,             // bump font size on commonly-read small text

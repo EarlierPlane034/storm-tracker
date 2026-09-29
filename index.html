@@ -100,8 +100,10 @@
       <!-- GPS proximity chip -->
       <div class="gps-chip" id="gps-chip" hidden></div>
 
-      <!-- Tornado risk at a glance — always visible, no tab-digging required -->
-      <div class="tor-risk-chip" id="tor-risk-chip" hidden></div>
+      <!-- Threat at a glance — always visible, no tab-digging required.
+           Prioritizes an active official NWS warning over the AI tornado
+           chance estimate, since a real warning is a certainty, not a guess. -->
+      <div class="threat-chip" id="threat-chip" hidden></div>
 
       <!-- Chase mode HUD (Settings → Chase mode) -->
       <div class="chase-hud" id="chase-hud" hidden></div>

@@ -10,6 +10,7 @@ import { CONFIG } from '../config.js';
 import { settings, saveSettings } from '../storage.js';
 import { PRODUCTS, getProduct, colorTableFilter } from './products.js';
 import { fetchRadarSites } from '../api/iem.js';
+import { declutterTileImage } from './declutter.js';
 import { haversineKm } from '../utils.js';
 
 const IEM_TILES = CONFIG.endpoints.iemTiles;
@@ -233,6 +234,13 @@ export class RadarController {
           this.rebuild();
         }
       });
+    }
+    // Experimental heuristic declutter (Settings → Radar) — opt-in only,
+    // see declutter.js for why: it's a texture guess, not real dual-pol
+    // filtering, and can fade genuinely light/uniform rain along with
+    // clutter. Only meaningful on single-site reflectivity.
+    if (isSiteMode && prod.id === 'N0Q' && settings.declutterHeuristic) {
+      f.layer.on('tileload', (e) => declutterTileImage(e.tile));
     }
     f.layer.addTo(this.map);
   }

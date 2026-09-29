@@ -12,7 +12,7 @@ import { MapView } from './ui/mapView.js';
 import { analyzeStorms, computeUserRel } from './analysis/stormAnalyzer.js';
 import { rememberAnalysis, pruneNarrative, tickerHeadline } from './analysis/narrative.js';
 import { renderStormList, openStormSheet, initStormSheet, configureStormSheet, scoreClass } from './ui/stormPanel.js';
-import { renderAlerts } from './ui/alertsPanel.js';
+import { renderAlerts, distToAlert } from './ui/alertsPanel.js';
 import { renderAiPanel } from './ui/aiPanel.js';
 import { renderSettings } from './ui/settingsPanel.js';
 import { renderLayers } from './ui/layersPanel.js';
@@ -41,6 +41,7 @@ import { searchCities } from './data/cities.js';
 import { searchGlossary } from './data/glossary.js';
 
 let mapView, radar, advancedPanel, week3Panel;
+let showPanelFn = null; // set by wireChrome() so module-level updaters can open a tab
 let analyses = [];
 let route = null; // { name, coords: [[lat,lon],...] }
 let communityReports = [];
@@ -72,7 +73,7 @@ async function main() {
   });
   radar = new RadarController(mapView.map, {
     onFrameChange: updateAnimBar,
-    onProductChange: (prod) => { renderProductRail(); renderLegend(prod); },
+    onProductChange: (prod) => { renderProductRail(); renderLegend(prod); maybeHintClutter(prod); },
     onNotice: (msg) => showToast(msg, { level: 'warn', ttlMs: 9000 }),
   });
   radar.rebuild();
@@ -386,7 +387,7 @@ const reanalyze = debounce(() => {
   updateChaseHud(user);
   updateTicker(user);
   updateGpsChip(user);
-  updateTornadoRiskChip(user);
+  updateThreatChip(user);
   // Alerts always consider every storm — display filters never mute safety.
   evaluateStorms(analyses, user);
 
@@ -408,7 +409,7 @@ const updateUserRelative = debounce((user) => {
   updateChaseHud(user);
   updateTicker(user);
   updateGpsChip(user);
-  updateTornadoRiskChip(user);
+  updateThreatChip(user);
   evaluateStorms(analyses, user);
 }, 400);
 
@@ -480,14 +481,49 @@ function updateGpsChip(user) {
   chip.onclick = () => selectStorm(near);
 }
 
-/** Tornado risk at a glance — always-visible, plain-language readout of
- * "could a tornado happen right now", so answering that doesn't require
- * opening a tab and reading a storm sheet. Deliberately shows a calm state
- * just as clearly as an alarming one — silence isn't itself reassuring. */
-function updateTornadoRiskChip(user) {
-  const chip = document.getElementById('tor-risk-chip');
-  if (!analyses.length) { chip.hidden = true; return; }
+const WARNING_KIND_META = {
+  'tor-warning': { icon: '🌪', label: 'TORNADO WARNING', cls: 'threat-tor' },
+  'svr-warning': { icon: '⛈', label: 'SEVERE T-STORM WARNING', cls: 'threat-svr' },
+  'ffw-warning': { icon: '💧', label: 'FLASH FLOOD WARNING', cls: 'threat-ffw' },
+};
+
+/** Threat at a glance — always-visible, plain-language readout of "should
+ * I worry right now", so answering that doesn't require opening a tab. An
+ * active OFFICIAL NWS warning is a certainty, so it always outranks the
+ * AI's tornado-chance estimate (a guess) when both apply; within warnings,
+ * tornado beats severe beats flash flood. Falls back to the AI estimate
+ * when nothing official is active nearby, and states the calm case just as
+ * clearly as an alarming one — silence isn't itself reassuring. */
+function updateThreatChip(user) {
+  const chip = document.getElementById('threat-chip');
+
+  let officialHit = null;
+  if (user) {
+    const alerts = sources.getState().alerts || [];
+    for (const kind of Object.keys(WARNING_KIND_META)) {
+      const matches = alerts.filter((a) => a.kind === kind);
+      if (!matches.length) continue;
+      const nearest = matches
+        .map((a) => ({ a, d: distToAlert(a, user) }))
+        .sort((x, y) => x.d - y.d)[0];
+      if (nearest.d <= settings.monitorRadiusKm) { officialHit = { kind, ...nearest }; break; }
+    }
+  }
+
+  if (!analyses.length && !officialHit) { chip.hidden = true; return; }
   chip.hidden = false;
+
+  if (officialHit) {
+    const meta = WARNING_KIND_META[officialHit.kind];
+    chip.className = `threat-chip ${meta.cls}`;
+    const where = officialHit.d === 0 ? 'YOU ARE IN THIS WARNING' : `${fmtDistance(officialHit.d, settings.units)} away`;
+    chip.innerHTML = `${meta.icon} <strong>${meta.label}</strong> — ${where}`;
+    chip.onclick = () => showPanelFn?.('alerts');
+    return;
+  }
+
+  chip.className = 'threat-chip';
+  if (!analyses.length) { chip.hidden = true; return; }
   const pool = user
     ? analyses.filter((a) => a.userRel && a.userRel.distKm <= settings.monitorRadiusKm)
     : analyses;
@@ -554,7 +590,7 @@ function renderProductRail() {
     for (const prod of extra) addBtn(prod);
   }
   rail.appendChild(el('button', {
-    class: 'product-btn',
+    class: 'product-btn', id: 'rail-more-btn',
     text: railExpanded ? '▲' : '•••',
     title: railExpanded ? 'Fewer products' : 'More products',
     onclick: () => { railExpanded = !railExpanded; renderProductRail(); },
@@ -1002,6 +1038,33 @@ function approachPositionText(user, target) {
 }
 
 /** "Sunset 8:42 PM · 2h 10m of light" or an after-dark caution. */
+let clutterHintShown = false;
+function isNightAt(lat, lon) {
+  const { sunrise, sunset } = sunTimes(lat, lon);
+  if (!sunrise || !sunset) return false;
+  const now = Date.now();
+  return now < sunrise.getTime() || now > sunset.getTime();
+}
+
+/** One-time educational nudge: single-site Base Reflectivity at night often
+ * shows a hazy gray tint across the whole radar dome (ground clutter/AP —
+ * the radar's more sensitive "clear-air" mode at night, without the
+ * clean-up a national composite mosaic gets). Not a detector of an actual
+ * clutter event happening right now — just an honest heads-up about when
+ * it's common, since this app has no dual-pol data to detect it for real
+ * (see js/radar/level2.js for what an actual fix looks like). */
+function maybeHintClutter(prod) {
+  if (prod.id !== 'N0Q' || clutterHintShown) return;
+  const loc = radar.site || geo.getLocation();
+  if (!loc) return;
+  if (!isNightAt(loc.lat, loc.lon)) return;
+  clutterHintShown = true;
+  showToast(
+    'Heads up: single-site Base Reflectivity often shows a hazy gray tint across the whole radar dome at night — that\'s usually ground clutter, not rain. Try CREF for a clutter-free view, or turn on the experimental declutter filter in Settings → Radar.',
+    { ttlMs: 14_000 },
+  );
+}
+
 function daylightText(user) {
   const { sunset } = sunTimes(user.lat, user.lon);
   if (!sunset) return '';
@@ -1314,6 +1377,7 @@ function wireChrome() {
     // Stale panels render the moment they become visible.
     if (name && dirtyPanels.has(name)) renderPanel(name);
   };
+  showPanelFn = showPanel;
 
   tabs.forEach((tab) => tab.addEventListener('click', () => {
     const name = tab.dataset.panel;
@@ -1388,6 +1452,7 @@ function wireChrome() {
           : 'Data saver off — back to 1-minute refresh.');
       }
       if (path.startsWith('radar') || path === 'colorTable') radar.applyStyle();
+      if (path === 'declutterHeuristic') radar.rebuild();
       if (path === 'refreshIntervalSec') sources.applyRefreshInterval();
       if (path === 'refreshIntervalSec' || path === 'animFps') radar.rebuild();
       if (['units', 'monitorRadiusKm', 'aiSensitivity', 'showTechnical',
