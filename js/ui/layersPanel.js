@@ -17,7 +17,7 @@ const LAYERS = [
   ['tornadoCones', 'Tornado risk corridors', 'Widening "cone of concern" along the track of any storm with Elevated+ tornado chance'],
 ];
 
-export function renderLayers({ onChanged, onGlance, onTornadoHistory }) {
+export function renderLayers({ onChanged, onGlance, onTornadoHistory, onCheckLevel2 }) {
   const host = document.getElementById('layers-body');
   host.textContent = '';
 
@@ -39,6 +39,12 @@ export function renderLayers({ onChanged, onGlance, onTornadoHistory }) {
         text: `📊 Local climatology (from the loaded archive): ${clim.count} tornadoes recorded near this view since 1950 · peak month ${clim.peakMonth} · strongest EF${clim.strongestEF}${clim.totalFatalities ? ` · ${clim.totalFatalities} fatalities total` : ''}.`,
       }));
     }
+  }
+  if (onCheckLevel2) {
+    host.appendChild(el('div', { class: 'setting-row' }, [
+      el('label', { html: '📡 Raw Level II data<span class="hint">Same raw radar feed RadarScope renders (info only — full decoding/rendering isn\'t built here yet)</span>' }),
+      el('button', { class: 'product-btn', text: 'Check', onclick: onCheckLevel2 }),
+    ]));
   }
   // Overlay layers.
   for (const [key, label, hint] of LAYERS) {

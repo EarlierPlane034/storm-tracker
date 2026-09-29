@@ -389,6 +389,34 @@ canvas[style*="background: black"] {
 }
 .gps-chip strong { color: var(--warn); }
 
+/* Tornado risk at a glance — the single most important "should I worry"
+   readout, so it sits as its own always-visible chip rather than folded
+   into GPS proximity text or buried behind a tab tap. */
+.tor-risk-chip {
+  position: absolute;
+  left: 10px;
+  top: 44px;
+  max-width: calc(100vw - 200px);
+  padding: 7px 14px;
+  border-radius: 999px;
+  background: var(--bg-overlay);
+  border: 1px solid var(--border);
+  font-size: 12.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  z-index: 1000;
+  cursor: pointer;
+}
+.tor-risk-chip[hidden] {
+  display: none !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+  position: absolute !important;
+  opacity: 0 !important;
+}
+
 /* ---------- Bottom tab bar ---------- */
 .tabbar {
   display: flex;

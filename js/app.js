@@ -11,13 +11,14 @@ import { RadarController } from './radar/radarController.js';
 import { MapView } from './ui/mapView.js';
 import { analyzeStorms, computeUserRel } from './analysis/stormAnalyzer.js';
 import { rememberAnalysis, pruneNarrative, tickerHeadline } from './analysis/narrative.js';
-import { renderStormList, openStormSheet, initStormSheet, configureStormSheet } from './ui/stormPanel.js';
+import { renderStormList, openStormSheet, initStormSheet, configureStormSheet, scoreClass } from './ui/stormPanel.js';
 import { renderAlerts } from './ui/alertsPanel.js';
 import { renderAiPanel } from './ui/aiPanel.js';
 import { renderSettings } from './ui/settingsPanel.js';
 import { renderLayers } from './ui/layersPanel.js';
 import { showToast } from './ui/toasts.js';
 import { computeClimatology } from './analysis/climatology.js';
+import { fetchLevel2Availability } from './radar/level2.js';
 import { recordDigestSample } from './analysis/digest.js';
 import * as geo from './location.js';
 import { evaluateAlerts, evaluateStorms, requestNotificationPermission } from './alerts/alertEngine.js';
@@ -385,6 +386,7 @@ const reanalyze = debounce(() => {
   updateChaseHud(user);
   updateTicker(user);
   updateGpsChip(user);
+  updateTornadoRiskChip(user);
   // Alerts always consider every storm — display filters never mute safety.
   evaluateStorms(analyses, user);
 
@@ -406,6 +408,7 @@ const updateUserRelative = debounce((user) => {
   updateChaseHud(user);
   updateTicker(user);
   updateGpsChip(user);
+  updateTornadoRiskChip(user);
   evaluateStorms(analyses, user);
 }, 400);
 
@@ -475,6 +478,29 @@ function updateGpsChip(user) {
   const eta = near.userRel.etaMin != null ? ` · ETA ~${near.userRel.etaMin} min` : '';
   chip.innerHTML = `📍 Nearest storm <strong>${fmtDistance(near.userRel.distKm, settings.units)}</strong>${eta}`;
   chip.onclick = () => selectStorm(near);
+}
+
+/** Tornado risk at a glance — always-visible, plain-language readout of
+ * "could a tornado happen right now", so answering that doesn't require
+ * opening a tab and reading a storm sheet. Deliberately shows a calm state
+ * just as clearly as an alarming one — silence isn't itself reassuring. */
+function updateTornadoRiskChip(user) {
+  const chip = document.getElementById('tor-risk-chip');
+  if (!analyses.length) { chip.hidden = true; return; }
+  chip.hidden = false;
+  const pool = user
+    ? analyses.filter((a) => a.userRel && a.userRel.distKm <= settings.monitorRadiusKm)
+    : analyses;
+  const scoped = pool.length ? pool : analyses;
+  const top = [...scoped].sort((a, b) => b.tornado.score - a.tornado.score)[0];
+  const dot = `<span class="score-pill ${scoreClass(top.tornado.score)}" style="width:10px;height:10px;padding:0;border-radius:50%;display:inline-block;vertical-align:middle;margin-right:7px"></span>`;
+  if (top.tornado.score < 21) {
+    chip.innerHTML = `${dot}Tornado risk: <strong>${top.tornado.label}</strong> right now`;
+  } else {
+    const dist = top.userRel ? `, ${fmtDistance(top.userRel.distKm, settings.units)} away` : '';
+    chip.innerHTML = `${dot}Tornado risk: <strong>${top.tornado.label}</strong> (${top.tornado.pct})${dist}`;
+  }
+  chip.onclick = () => selectStorm(top);
 }
 
 /* ---------------- Radar product rail + animation bar ---------------- */
@@ -660,6 +686,30 @@ function updateGlance() {
         : `ALL QUIET<div class="glance-sub">no storms being tracked</div>`}</div>
     <div class="glance-alerts">${torCount ? `🌪 ${torCount} tornado warning${torCount === 1 ? '' : 's'} active` : 'No tornado warnings active'}</div>
     <div class="glance-foot">${new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })} · tap anywhere to close</div>`;
+}
+
+/** Checks NOAA's public Level II archive (the same raw radar data
+ * RadarScope decodes and renders itself) for the current radar site.
+ * Info-only for now — see js/radar/level2.js for why full decode/render
+ * isn't built here yet. */
+async function checkLevel2Availability() {
+  const site = radar.site;
+  if (!site) {
+    showToast('No radar site resolved yet — wait a moment or pan the map, then try again.', { level: 'warn' });
+    return;
+  }
+  showToast(`Checking NOAA's Level II archive for ${site.id}…`);
+  const info = await fetchLevel2Availability(site.id);
+  if (!info) {
+    showToast(`Couldn't reach NOAA's Level II archive for ${site.id} right now.`, { level: 'warn' });
+    return;
+  }
+  const ageMin = info.lastModified ? Math.round((Date.now() - info.lastModified.getTime()) / 60000) : null;
+  const sizeMb = info.sizeBytes ? (info.sizeBytes / 1e6).toFixed(1) : '?';
+  showToast(
+    `${site.id}: latest raw Level II volume is ${ageMin != null ? `~${ageMin} min old` : 'of unknown age'}, ${sizeMb} MB — the same raw feed RadarScope renders. StormLens doesn't decode it into imagery yet; this just confirms the pipeline reaches it.`,
+    { ttlMs: 14_000 },
+  );
 }
 
 /* ---------------- Tornado history (SPC climatology archive) ---------------- */
@@ -1279,6 +1329,7 @@ function wireChrome() {
         onChanged: () => mapView.syncLayerVisibility(),
         onGlance: openGlance,
         onTornadoHistory: loadTornadoHistory,
+        onCheckLevel2: checkLevel2Availability,
       });
       showPanel('layers');
     } else {

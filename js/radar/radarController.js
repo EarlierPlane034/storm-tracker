@@ -30,18 +30,39 @@ export class RadarController {
     this.playTimer = null;
     this.refreshTimer = null;
     this.paneName = 'radarPane';
+    // Products with mosaicFallback (e.g. REF) normally only fall back to the
+    // national mosaic while no site has been resolved yet. If a site IS
+    // resolved but that site's own single-site tiles are erroring out (down
+    // radar, IEM cache gap, etc.), there was previously no recovery — this
+    // flag lets ensureLayer() force the same fallback once errors pile up.
+    this._forceMosaic = {};
+    this._siteErrorCounts = {};
 
     const pane = map.createPane(this.paneName);
     pane.style.zIndex = 350; // below overlays/markers, above basemap
     this.applyStyle();
+    map.on('zoomend', () => this.applyStyle());
   }
 
-  /** Apply opacity + colour table + smoothing to the radar pane. */
+  /** Apply opacity + colour table + smoothing to the radar pane.
+   *
+   * Tiles are only rendered natively up to zoom 10 (maxNativeZoom below) —
+   * past that the browser is stretching the same pixels, which is where
+   * "pixelated" rendering turns into visibly blocky squares rather than a
+   * deliberate crisp look. Auto-force smoothing once zoomed past native
+   * resolution regardless of the user's preference (it still applies
+   * at-or-below native zoom, where it's a real stylistic choice), and nudge
+   * contrast/saturation up slightly to counteract the softening bilinear
+   * upscaling causes to dBZ bin edges — a free "look sharper" pass with no
+   * new tile data involved. */
   applyStyle() {
     const pane = this.map.getPane(this.paneName);
     pane.style.opacity = settings.radarOpacity;
-    pane.style.filter = colorTableFilter(settings.colorTable);
-    pane.style.imageRendering = settings.radarSmoothing ? 'auto' : 'pixelated';
+    const upscaled = this.map.getZoom() > 10;
+    pane.style.imageRendering = (settings.radarSmoothing || upscaled) ? 'auto' : 'pixelated';
+    const base = colorTableFilter(settings.colorTable);
+    const boost = upscaled ? 'contrast(1.06) saturate(1.08)' : '';
+    pane.style.filter = [base === 'none' ? '' : base, boost].filter(Boolean).join(' ') || 'none';
   }
 
   /**
@@ -65,6 +86,7 @@ export class RadarController {
     }
     if (next && (!this.site || next.id !== this.site.id)) {
       this.site = next;
+      this._forceMosaic = {}; // a different site deserves a fresh chance
       const prod = getProduct(this.productId);
       if (prod?.mode === 'site' || prod?.mosaicFallback) this.rebuild();
     }
@@ -88,6 +110,7 @@ export class RadarController {
     }
     this.productId = id;
     this.tiltIndex = 0;
+    delete this._forceMosaic[id]; // re-selecting gives it a fresh chance to load
     this.rebuild();
     this.onProductChange(prod);
   }
@@ -103,7 +126,7 @@ export class RadarController {
 
   /** Build tile URL for a product/frame. */
   frameUrl(prod, frameOffset) {
-    if (prod.mode === 'mosaic' || (prod.mosaicFallback && !this.site)) {
+    if (prod.mode === 'mosaic' || (prod.mosaicFallback && (!this.site || this._forceMosaic[prod.id]))) {
       const layer = prod.layer || 'nexrad-n0q-900913';
       const suffix = frameOffset === 0
         ? '' : `-m${String(frameOffset).padStart(2, '0')}m`;
@@ -137,7 +160,7 @@ export class RadarController {
     for (const f of this.frames) if (f.layer) this.map.removeLayer(f.layer);
     this.frames = [];
 
-    const isMosaic = prod.mode === 'mosaic' || (prod.mosaicFallback && !this.site);
+    const isMosaic = prod.mode === 'mosaic' || (prod.mosaicFallback && (!this.site || this._forceMosaic[prod.id]));
     const frameCount = prod.noHistory ? 1 : isMosaic ? CONFIG.radar.frameCount : 5;
     const step = CONFIG.radar.frameStepMin;
 
@@ -160,7 +183,7 @@ export class RadarController {
     const f = this.frames[i];
     if (!f || f.layer) return;
     const prod = getProduct(this.productId);
-    const isSiteMode = prod.mode === 'site' && this.site;
+    const isSiteMode = prod.mode === 'site' && this.site && !this._forceMosaic[prod.id];
     // Single-site products only have data within ~230 km of the radar.
     // Bounding the layer stops Leaflet requesting hundreds of guaranteed-404
     // tiles when the map is panned/zoomed away — the main cause of velocity
@@ -192,6 +215,22 @@ export class RadarController {
         if (++errCount === 10 && !this._warnedMissing[prod.id]) {
           this._warnedMissing[prod.id] = true;
           this.onNotice(`${prod.name} tiles appear unavailable from the public cache right now — try again later or switch products.`);
+        }
+      });
+    }
+    // A resolved site's own single-site cache can go stale/empty (radar
+    // down, IEM cache gap) even though the site itself is fine — unlike the
+    // no-site-yet case, frameUrl() has no automatic fallback for that.
+    // Recover the same way: after enough tile failures on the live layer,
+    // force this product onto the national mosaic and say so.
+    if (isSiteMode && prod.mosaicFallback) {
+      this._siteErrorCounts[prod.id] = 0;
+      f.layer.on('tileerror', () => {
+        if (this._forceMosaic[prod.id]) return; // already recovered
+        if (++this._siteErrorCounts[prod.id] >= 6) {
+          this._forceMosaic[prod.id] = true;
+          this.onNotice(`${prod.name}: ${this.site.id}'s single-site data isn't loading right now — showing the national composite instead.`);
+          this.rebuild();
         }
       });
     }
